@@ -9,12 +9,15 @@ import Goals from "@/pages/Goals";
 import Bonus from "@/pages/Bonus";
 import Scope from "@/pages/Scope";
 import Calculator from "@/pages/Calculator";
+import SalesPage from "@/pages/SalesPage";
+import ThankYou from "@/pages/ThankYou";
 import { FinanceProvider } from "@/context/FinanceContext";
 
 function Shell({ children }) {
   const location = useLocation();
-  // Calculator is a public landing page — hide sidebar
-  const isPublic = location.pathname === "/calculadora";
+  // Public routes have their own layout (no sidebar)
+  const publicRoutes = ["/calculadora", "/venda", "/obrigado"];
+  const isPublic = publicRoutes.includes(location.pathname);
   if (isPublic) return <div className="grain min-h-screen">{children}</div>;
   return (
     <div className="grain flex" style={{ minHeight: "100vh" }}>
@@ -35,6 +38,8 @@ function App() {
             <Route path="/dividas" element={<Debts />} />
             <Route path="/metas" element={<Goals />} />
             <Route path="/calculadora" element={<Calculator />} />
+            <Route path="/venda" element={<SalesPage />} />
+            <Route path="/obrigado" element={<ThankYou />} />
             <Route path="/bonus" element={<Bonus />} />
             <Route path="/escopo" element={<Scope />} />
           </Routes>

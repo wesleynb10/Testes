@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { brl } from "@/lib/format";
 import {
@@ -11,6 +12,8 @@ import {
   Tooltip,
 } from "recharts";
 import { Sparkles, ChevronRight, Gem, Mail, TrendingUp } from "lucide-react";
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function Calculator() {
   const nav = useNavigate();
@@ -49,13 +52,23 @@ export default function Calculator() {
   const totalJuros = final ? final.juros : 0;
   const totalInvestido = final ? final.investido : 0;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (email && email.includes("@")) {
-      // Store lead in localStorage (in real app, POST to backend/CRM)
+      // Persist locally (works offline / no-backend)
       const leads = JSON.parse(localStorage.getItem("finpremium_leads") || "[]");
       leads.push({ email, date: new Date().toISOString(), source: "calculadora" });
       localStorage.setItem("finpremium_leads", JSON.stringify(leads));
+      // Fire-and-forget to backend (so infoprodutor can see the leads)
+      try {
+        await axios.post(`${API}/leads`, {
+          email,
+          source: "calculadora",
+          metadata: { initial, monthly, years, rate },
+        });
+      } catch (err) {
+        console.warn("Backend lead capture failed", err);
+      }
       setSubscribed(true);
     }
   };

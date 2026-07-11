@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   BookOpen,
   Video,
@@ -85,6 +86,7 @@ const RECOMMENDED_BOOKS = [
 ];
 
 export default function Bonus() {
+  const nav = useNavigate();
   const [expanded, setExpanded] = useState(null);
   const totalValue = BONUSES.reduce((s, b) => s + parseInt(b.value.replace(/\D/g, "")), 0);
 
@@ -200,7 +202,7 @@ export default function Bonus() {
         <p className="text-[14px] mb-6 max-w-xl mx-auto" style={{ color: "var(--text-secondary)" }}>
           Planilha Premium + 6 bônus + acesso vitalício + atualizações gratuitas + comunidade privada.
         </p>
-        <button className="btn-gold" data-testid="cta-btn" style={{ fontSize: 15, padding: "14px 32px" }}>
+        <button onClick={() => nav("/venda")} className="btn-gold" data-testid="cta-btn" style={{ fontSize: 15, padding: "14px 32px" }}>
           Quero o Kit Completo
           <ChevronRight className="w-4 h-4 inline ml-2" />
         </button>
