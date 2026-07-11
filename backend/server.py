@@ -35,6 +35,11 @@ from auth_service import (
     seed_admin, create_indexes,
 )
 
+from drip_service import (
+    schedule_drip, cancel_drip_for_email, drip_worker_loop,
+    fire_next_email_for_lead, send_due_emails,
+)
+
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -161,6 +166,11 @@ async def create_lead(payload: LeadCreate):
         await notify_new_lead(doc["email"], doc["source"], doc["metadata"])
     except Exception as e:
         logging.warning(f"Lead notify failed: {e}")
+    # Kick off the 5-email drip sequence
+    try:
+        await schedule_drip(db, doc["email"], doc["id"], doc["metadata"])
+    except Exception as e:
+        logging.warning(f"Drip schedule failed: {e}")
     return {"success": True, "id": doc["id"]}
 
 @api_router.get("/leads/count")
@@ -255,6 +265,11 @@ async def get_checkout_status(session_id: str):
                     await notify_owner_sale(pkg_name, amount, customer_email, session_id)
                 except Exception as e:
                     logging.warning(f"Owner sale notify failed: {e}")
+                # Cancel the drip sequence for this lead — they converted
+                try:
+                    await cancel_drip_for_email(db, customer_email, reason="purchased")
+                except Exception as e:
+                    logging.warning(f"Drip cancel failed: {e}")
 
     return {
         "status": status.status,
@@ -348,6 +363,41 @@ async def admin_transactions(current: dict = Depends(get_current_user), limit: i
     return {"transactions": docs, "count": len(docs)}
 
 
+@api_router.get("/admin/drip")
+async def admin_drip(current: dict = Depends(get_current_user), limit: int = 300):
+    docs = await db.email_queue.find({}, {"_id": 0}).sort("send_at", 1).to_list(length=limit)
+    # Convert datetime to iso strings for JSON
+    for d in docs:
+        if isinstance(d.get("send_at"), datetime):
+            d["send_at"] = d["send_at"].isoformat()
+    pending = sum(1 for d in docs if d.get("status") == "pending")
+    sent = sum(1 for d in docs if d.get("status") == "sent")
+    cancelled = sum(1 for d in docs if d.get("status") == "cancelled")
+    failed = sum(1 for d in docs if d.get("status") == "failed")
+    return {
+        "queue": docs,
+        "summary": {"pending": pending, "sent": sent, "cancelled": cancelled, "failed": failed, "total": len(docs)},
+    }
+
+
+class DripFireRequest(BaseModel):
+    email: str
+
+
+@api_router.post("/admin/drip/fire-next")
+async def admin_drip_fire_next(payload: DripFireRequest, current: dict = Depends(get_current_user)):
+    result = await fire_next_email_for_lead(db, payload.email)
+    if not result:
+        raise HTTPException(status_code=404, detail="No pending emails for this lead")
+    return result
+
+
+@api_router.post("/admin/drip/run-now")
+async def admin_drip_run_now(current: dict = Depends(get_current_user)):
+    sent = await send_due_emails(db)
+    return {"sent": sent}
+
+
 # Helper (timedelta days)
 def timedelta_days(n):
     from datetime import timedelta as _td
@@ -398,7 +448,14 @@ async def startup():
     try:
         await create_indexes(db)
         await seed_admin(db)
-        logger.info("Startup complete: indexes + admin seeded")
+        # Additional indexes for drip
+        await db.email_queue.create_index("status")
+        await db.email_queue.create_index("send_at")
+        await db.email_queue.create_index("lead_email")
+        # Launch background drip worker
+        import asyncio as _asyncio
+        _asyncio.create_task(drip_worker_loop(db, interval_seconds=60))
+        logger.info("Startup complete: indexes + admin seeded + drip worker started")
     except Exception as e:
         logger.error(f"Startup error: {e}")
 

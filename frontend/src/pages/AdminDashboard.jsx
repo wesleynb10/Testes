@@ -5,12 +5,14 @@ import { brl, pct } from "@/lib/format";
 import {
   Gem, LogOut, TrendingUp, Users, DollarSign, Percent, Calendar, Mail,
   Loader2, RefreshCw, ArrowUpRight, ShoppingBag, ChevronRight, ExternalLink,
+  Send, Zap, Play, XCircle, CheckCircle2, Clock,
 } from "lucide-react";
 
 const TABS = [
   { id: "overview", label: "Visão geral" },
   { id: "leads", label: "Leads" },
   { id: "sales", label: "Vendas" },
+  { id: "drip", label: "Sequência de Emails" },
 ];
 
 function KPI({ label, value, icon: Icon, tone = "default", subtitle }) {
@@ -46,23 +48,51 @@ export default function AdminDashboard() {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [drip, setDrip] = useState({ queue: [], summary: {} });
+  const [firing, setFiring] = useState(null);
 
   const loadAll = async () => {
     setRefreshing(true);
     try {
-      const [s, l, t] = await Promise.all([
+      const [s, l, t, d] = await Promise.all([
         api.get("/admin/dashboard"),
         api.get("/admin/leads?limit=200"),
         api.get("/admin/transactions?limit=200"),
+        api.get("/admin/drip?limit=300"),
       ]);
       setStats(s.data);
       setLeads(l.data.leads);
       setSales(t.data.transactions);
+      setDrip(d.data);
     } catch (e) {
       console.error(e);
       if (e.response?.status === 401) nav("/admin/login");
     } finally {
       setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const fireNext = async (email) => {
+    setFiring(email);
+    try {
+      await api.post("/admin/drip/fire-next", { email });
+      await loadAll();
+    } catch (e) {
+      alert("Erro ao disparar: " + (e.response?.data?.detail || e.message));
+    } finally {
+      setFiring(null);
+    }
+  };
+
+  const runNow = async () => {
+    setRefreshing(true);
+    try {
+      await api.post("/admin/drip/run-now");
+      await loadAll();
+    } catch (e) {
+      console.error(e);
+    } finally {
       setRefreshing(false);
     }
   };
@@ -290,6 +320,103 @@ export default function AdminDashboard() {
                     </tbody>
                   </table>
                 )}
+              </div>
+            )}
+
+            {/* Drip / Sequência de Emails */}
+            {tab === "drip" && (
+              <div data-testid="tab-content-drip">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="card-premium p-5">
+                    <div className="kpi-label mb-2">Agendados</div>
+                    <div className="kpi-value gold font-mono-num">{drip.summary.pending || 0}</div>
+                  </div>
+                  <div className="card-premium p-5">
+                    <div className="kpi-label mb-2">Enviados</div>
+                    <div className="kpi-value success font-mono-num">{drip.summary.sent || 0}</div>
+                  </div>
+                  <div className="card-premium p-5">
+                    <div className="kpi-label mb-2">Cancelados (comprou)</div>
+                    <div className="kpi-value font-mono-num">{drip.summary.cancelled || 0}</div>
+                  </div>
+                  <div className="card-premium p-5">
+                    <div className="kpi-label mb-2">Falhas</div>
+                    <div className="kpi-value danger font-mono-num">{drip.summary.failed || 0}</div>
+                  </div>
+                </div>
+
+                <div className="card-premium p-6">
+                  <div className="flex items-center justify-between mb-5">
+                    <div>
+                      <div className="kpi-label mb-1">Fila de envio</div>
+                      <div className="font-display text-[22px]">Sequência automática de 5 emails</div>
+                      <div className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>
+                        Cada lead que preenche a calculadora recebe: dia 1 (relatório), dia 3 (case), dia 5 (cupom SAVE20), dia 9 (última chance), dia 14 (feedback).
+                      </div>
+                    </div>
+                    <button data-testid="drip-run-now" onClick={runNow} disabled={refreshing} className="btn-ghost" style={{ display: "flex", gap: 6, alignItems: "center", padding: "8px 14px", fontSize: 12 }}>
+                      <Zap className="w-3.5 h-3.5" /> Verificar fila agora
+                    </button>
+                  </div>
+
+                  {drip.queue.length === 0 ? (
+                    <div className="text-center py-12" style={{ color: "var(--text-muted)" }}>
+                      Nenhum email na fila ainda. Capture um lead na <a href="/calculadora" className="underline" style={{ color: "var(--gold-bright)" }}>calculadora</a> para ver a sequência aparecer aqui.
+                    </div>
+                  ) : (
+                    <table className="table-premium">
+                      <thead>
+                        <tr>
+                          <th style={{ width: 40 }}>Nº</th>
+                          <th>Destinatário</th>
+                          <th>Assunto</th>
+                          <th style={{ width: 130 }}>Envio</th>
+                          <th style={{ width: 110 }}>Status</th>
+                          <th style={{ width: 130 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {drip.queue.map((q) => {
+                          const statusColor = {
+                            pending: "var(--gold-bright)",
+                            sent: "var(--success)",
+                            cancelled: "var(--text-muted)",
+                            failed: "var(--danger)",
+                          }[q.status] || "var(--text-primary)";
+                          const StatusIcon = { pending: Clock, sent: CheckCircle2, cancelled: XCircle, failed: XCircle }[q.status] || Clock;
+                          return (
+                            <tr key={q.id} data-testid={`drip-row-${q.id}`}>
+                              <td className="font-mono-num" style={{ color: "var(--gold)" }}>{q.step}</td>
+                              <td className="text-[13px]">{q.lead_email}</td>
+                              <td className="text-[12px]" style={{ color: "var(--text-secondary)" }}>{q.subject}</td>
+                              <td className="text-[11px] font-mono-num" style={{ color: "var(--text-muted)" }}>
+                                {formatDate(q.send_at)}
+                              </td>
+                              <td>
+                                <span className="chip" style={{ fontSize: 10, color: statusColor, borderColor: statusColor }}>
+                                  <StatusIcon className="w-3 h-3" /> {q.status}
+                                </span>
+                              </td>
+                              <td>
+                                {q.status === "pending" && (
+                                  <button
+                                    data-testid={`drip-fire-${q.id}`}
+                                    onClick={() => fireNext(q.lead_email)}
+                                    disabled={firing === q.lead_email}
+                                    className="btn-ghost"
+                                    style={{ padding: "6px 12px", fontSize: 11, display: "flex", gap: 4, alignItems: "center" }}
+                                  >
+                                    <Play className="w-3 h-3" /> Enviar agora
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             )}
           </>
