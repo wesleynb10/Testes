@@ -172,16 +172,25 @@ export default function Debts() {
             <div className="space-y-1.5 text-[13px]">
               <div className="flex justify-between">
                 <span style={{ color: "var(--text-secondary)" }}>Meses economizados</span>
-                <span className="font-mono-num font-semibold" style={{ color: "var(--gold-bright)" }}>{savedMonths}</span>
+                <span className="font-mono-num font-semibold" style={{ color: "var(--gold-bright)" }}>
+                  {savedMonths === null ? "—" : savedMonths}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span style={{ color: "var(--text-secondary)" }}>Juros que você não paga</span>
-                <span className="font-mono-num font-semibold" style={{ color: "var(--success)" }}>{brl(savedInterest)}</span>
+                <span className="font-mono-num font-semibold" style={{ color: "var(--success)" }}>
+                  {savedInterest === null ? "—" : brl(savedInterest)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span style={{ color: "var(--text-secondary)" }}>Total pago em juros</span>
                 <span className="font-mono-num" style={{ color: "var(--text-primary)" }}>{brl(simulation.totalInterest)}</span>
               </div>
+              {!baselineConverged && (
+                <div className="text-[11px] pt-2 mt-1 border-t border-[var(--ink-line)]" style={{ color: "var(--warning)" }}>
+                  ⚠ Parcelas mínimas não cobrem os juros. O aporte extra é essencial para quitar.
+                </div>
+              )}
             </div>
           </div>
         </div>
