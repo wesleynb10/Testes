@@ -114,11 +114,13 @@ async def check_lockout(db, identifier: str):
     attempts = doc.get("attempts", 0)
     last_at = doc.get("last_attempt")
     if attempts >= MAX_LOGIN_ATTEMPTS and last_at:
+        # MongoDB returns naive datetimes — normalize to UTC-aware
+        if last_at.tzinfo is None:
+            last_at = last_at.replace(tzinfo=timezone.utc)
         elapsed = datetime.now(timezone.utc) - last_at
         if elapsed < timedelta(minutes=LOCKOUT_MINUTES):
             remaining = LOCKOUT_MINUTES - int(elapsed.total_seconds() // 60)
             raise HTTPException(status_code=429, detail=f"Muitas tentativas. Aguarde {remaining} minutos.")
-        # window expired — reset
         await db.login_attempts.delete_one({"identifier": identifier})
 
 

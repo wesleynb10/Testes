@@ -84,3 +84,25 @@ Usuário quer criar um infoproduto de Finanças Pessoais para vender via tráfeg
 - Módulo: `/app/backend/email_service.py` — templates HTML inline + `send_email` async via `asyncio.to_thread`.
 - Config `.env`: RESEND_API_KEY, SENDER_EMAIL, OWNER_EMAIL.
 - ⚠️ Test mode do Resend: emails só chegam em endereços verificados na conta. Owner recebe sempre (é o dono da conta). Emails para clientes precisam domínio verificado para ir em produção.
+
+## v1.4 (2026-01-11) — Painel Admin com Auth JWT
+- **Autenticação completa**: bcrypt + JWT (access 12h + refresh 30d) + cookies httpOnly Secure SameSite=none. Endpoints /api/auth/login, /logout, /me.
+- **Admin seeding** idempotente via ADMIN_EMAIL/ADMIN_PASSWORD do .env — cria/atualiza usuário no startup.
+- **Brute force protection**: 5 tentativas falhas em `{X-Forwarded-For:email}` → bloqueio de 15 min.
+- **Painel /admin** com login `/admin/login` — 3 tabs (Visão geral / Leads / Vendas), 4 KPIs (Receita, Leads, Conversão, Ticket médio), lista de leads da calculadora e transações Stripe.
+- **CORS explícito** — allow_origins=[FRONTEND_URL] (não `*`) para permitir cookies com credentials.
+- **Índices MongoDB** criados no startup: users.email (unique), login_attempts.identifier, leads.created_at, payment_transactions.created_at.
+- Config: JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, FRONTEND_URL no `.env`.
+- Credenciais: wesleynb10@gmail.com / FinPremium2026! (documentadas em `/app/memory/test_credentials.md`).
+
+## Bugs corrigidos v1.4
+- Brute force não travava por trás do ingress Kubernetes (IP mudava entre pods). Fix: usar X-Forwarded-For como identificador de IP real.
+- `check_lockout` crashava com `TypeError: can't subtract offset-naive and offset-aware datetimes` — MongoDB retorna datetime naive. Fix: normalizar para UTC-aware antes de subtrair.
+- SalesPage.jsx tinha resíduo duplicado pós-search_replace anterior — truncado.
+
+## Backlog restante
+- P2: Sequência de nutrição de 5 emails via Resend (drip campaign).
+- P2: Order bump no checkout.
+- P2: Verificação de domínio Resend para envio real a clientes.
+- P3: Assinatura recorrente Pro R$ 19,90/mês.
+- P3: Rate limit refinado (email-only para IP anônimo).

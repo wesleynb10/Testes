@@ -110,7 +110,10 @@ async def get_packages():
 @api_router.post("/auth/login")
 async def login(payload: LoginRequest, request: Request, response: Response):
     email = payload.email.lower().strip()
-    ip = request.client.host if request.client else "unknown"
+    # Behind Kubernetes ingress request.client.host is the pod IP (rotates).
+    # Use X-Forwarded-For first entry as the real client IP.
+    fwd = request.headers.get("X-Forwarded-For", "")
+    ip = fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "unknown")
     identifier = f"{ip}:{email}"
     await check_lockout(db, identifier)
 
