@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { useFinance } from "@/context/FinanceContext";
 import { brl, pct } from "@/lib/format";
+import ShareStory from "@/components/ShareStory";
 import {
   ResponsiveContainer,
   PieChart,
@@ -24,6 +25,7 @@ import {
   Sparkles,
   ArrowUpRight,
   ArrowDownRight,
+  Instagram,
 } from "lucide-react";
 
 const GOLD_PALETTE = ["#E8CE87", "#C9A961", "#8B7A3E", "#7A9AB8", "#7FB069", "#D46A6A", "#6B5D3A"];
@@ -87,6 +89,7 @@ function KPI({ label, value, delta, tone = "default", icon: Icon, testId }) {
 export default function Dashboard() {
   const { state } = useFinance();
   const { budget, goals, profile, fire } = state;
+  const [showShare, setShowShare] = useState(false);
 
   const totalReceita = profile.monthlyIncome;
   const gastosNec = budget.necessidades.reduce((s, it) => s + it.actual, 0);
@@ -138,6 +141,14 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <div className="chip gold"><Sparkles className="w-3 h-3" /> Regra 50/30/20 ativa</div>
+          <button
+            data-testid="open-share-story"
+            onClick={() => setShowShare(true)}
+            className="btn-ghost"
+            style={{ display: "flex", gap: 8, alignItems: "center" }}
+          >
+            <Instagram className="w-4 h-4" /> Compartilhar Story
+          </button>
         </div>
       </header>
 
@@ -371,6 +382,24 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {showShare && (
+        <ShareStory
+          onClose={() => setShowShare(false)}
+          stats={{
+            investido: investimentos,
+            saldo: saldo,
+            taxaPoupanca: taxaPoupanca,
+            metas: goals.length,
+            fireProgress: progresso,
+            pct: {
+              n: totalReceita > 0 ? (gastosNec / totalReceita) * 100 : 0,
+              d: totalReceita > 0 ? (gastosDes / totalReceita) * 100 : 0,
+              i: totalReceita > 0 ? (investimentos / totalReceita) * 100 : 0,
+            },
+          }}
+        />
+      )}
     </div>
   );
 }

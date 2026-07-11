@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useFinance } from "@/context/FinanceContext";
 import { brl, pct, parseNum } from "@/lib/format";
-import { Plus, Trash2, PieChart as PieIcon } from "lucide-react";
+import { Plus, Trash2, PieChart as PieIcon, Upload } from "lucide-react";
+import CSVImport from "@/components/CSVImport";
 
 const CATS = [
   { key: "necessidades", label: "Necessidades", target: 50, color: "var(--gold-bright)", desc: "Aluguel, mercado, contas, transporte, saúde" },
@@ -176,6 +177,7 @@ function CategoryBlock({ cat, income }) {
 export default function Budget() {
   const { state, updateProfile } = useFinance();
   const [income, setIncome] = useState(state.profile.monthlyIncome);
+  const [showImport, setShowImport] = useState(false);
 
   const handleIncomeChange = (v) => {
     const n = parseNum(v);
@@ -185,12 +187,22 @@ export default function Budget() {
 
   return (
     <div className="p-8 space-y-6" data-testid="budget-page">
-      <header>
-        <div className="eyebrow mb-3">Orçamento Mensal · Regra 50/30/20</div>
-        <h1 className="h-display">Cada real, um propósito.</h1>
-        <p className="mt-3 text-[15px] max-w-2xl" style={{ color: "var(--text-secondary)" }}>
-          Distribua sua renda em três pilares: <span style={{ color: "var(--gold-bright)" }}>Necessidades, Desejos e Investimentos</span>. Ajuste o planejado, registre o real, veja o desvio.
-        </p>
+      <header className="flex items-end justify-between flex-wrap gap-4">
+        <div>
+          <div className="eyebrow mb-3">Orçamento Mensal · Regra 50/30/20</div>
+          <h1 className="h-display">Cada real, um propósito.</h1>
+          <p className="mt-3 text-[15px] max-w-2xl" style={{ color: "var(--text-secondary)" }}>
+            Distribua sua renda em três pilares: <span style={{ color: "var(--gold-bright)" }}>Necessidades, Desejos e Investimentos</span>. Ajuste o planejado, registre o real, veja o desvio.
+          </p>
+        </div>
+        <button
+          data-testid="open-csv-import"
+          onClick={() => setShowImport(true)}
+          className="btn-gold"
+          style={{ display: "flex", gap: 8, alignItems: "center" }}
+        >
+          <Upload className="w-4 h-4" /> Importar Extrato (CSV)
+        </button>
       </header>
 
       {/* Income input */}
@@ -221,6 +233,8 @@ export default function Budget() {
           <CategoryBlock key={c.key} cat={c} income={income} />
         ))}
       </div>
+
+      {showImport && <CSVImport onClose={() => setShowImport(false)} />}
     </div>
   );
 }

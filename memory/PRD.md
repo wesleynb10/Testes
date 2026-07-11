@@ -4,53 +4,64 @@
 Usuário quer criar um infoproduto de Finanças Pessoais para vender via tráfego pago Meta/Instagram, com estética "premium dark mode" (dourado + preto), seguindo a metodologia de grandes influenciadores. Precisa de: (1) escopo completo do produto e (2) protótipo web funcional.
 
 ## Personas
-- **Comprador final**: 25-45 anos, CLT ou autônomo, ganha entre R$ 3-15k/mês, quer organizar as finanças e sente vergonha da própria situação. Já viu conteúdo de Nathalia Arcuri, Thiago Nigro, Primo Rico.
-- **Infoprodutor (usuário do escopo)**: profissional/creator que quer vender uma planilha ou app no-code e replicar o modelo.
+- **Comprador final**: 25-45 anos, CLT ou autônomo, ganha entre R$ 3-15k/mês, quer organizar as finanças.
+- **Infoprodutor (usuário do escopo)**: creator que quer vender uma planilha ou app no-code.
 
 ## Requisitos (estáticos)
-1. Documento de escopo detalhado em 4 pilares (Arquitetura, Design, Automação, Bônus).
+1. Documento de escopo detalhado em 4 pilares.
 2. Protótipo web em React funcional single-user (localStorage, sem auth).
 3. Idioma: Português (BR).
-4. Estética: Dark Mode Premium (dourado envelhecido + obsidiana).
+4. Estética: Dark Mode Premium (dourado + obsidiana).
 5. Integrações reais: PDF export, gráficos interativos, cálculos automáticos.
 
 ## Arquitetura
-- Frontend: React 19 + React Router + Recharts + jsPDF + Tailwind.
-- Backend: FastAPI (não usado nesta iteração — dados via localStorage).
-- Persistência: `localStorage` chave `finpremium_v1`.
-- Alias `@/*` → `src/*` via craco/jsconfig.
+- Frontend: React 19 + React Router + Recharts + jsPDF + Tailwind + Canvas API.
+- Backend: FastAPI (não usado — dados via localStorage).
+- Persistência: `localStorage` chave `finpremium_v1` + `finpremium_leads`.
+- Alias `@/*` → `src/*`.
 
-## Telas implementadas (v1.0)
-- `/` **Dashboard** — 4 KPIs, pie chart, evolução 6 meses, termômetro de metas, regra 50/30/20, alertas, Número da Liberdade.
-- `/orcamento` **Orçamento 50/30/20** — 3 blocos categorizados, edição inline, cálculo automático de ideal/real.
-- `/dividas` **Controle de Dívidas** — cadastro + simulador Bola de Neve/Avalanche + ordem de ataque + KPIs de impacto.
-- `/metas` **Metas & FIRE** — metas com deadline + calculadora Número da Liberdade (regra 4%).
-- `/bonus` **Bônus Premium** — 6 cards de bônus, biblioteca recomendada, CTA final.
-- `/escopo` **Escopo do Produto** — documento navegável em 4 seções + download MD e PDF.
+## Telas implementadas
+| Rota | Tela | Testids principais |
+|------|------|--------------------|
+| `/` | Dashboard | dashboard-page, kpi-{tipo}, chart-*, fire-card, open-share-story |
+| `/orcamento` | Orçamento 50/30/20 | budget-page, income-input, open-csv-import |
+| `/dividas` | Controle de Dívidas | debts-page, strategy-*, extra-payment-input |
+| `/metas` | Metas & Liberdade | goals-page, fire-* |
+| `/calculadora` | **Calculadora Pública (lead magnet)** | calculator-page, calc-*, lead-* |
+| `/bonus` | Bônus Premium | bonus-page, cta-btn |
+| `/escopo` | Escopo do Produto | scope-page, download-md, download-pdf |
+
+## Features implementadas (v1.1)
+### v1.0 (sessão anterior)
+- Dashboard executivo com 4 KPIs, pie chart, evolução 6m, termômetro de metas, regra 50/30/20, alertas, Número da Liberdade.
+- Orçamento 50/30/20 com edição inline.
+- Simulador de dívidas (Snowball/Avalanche).
+- Metas FIRE com fórmula regra 4%.
+- Página de Bônus com 6 cards.
+- Escopo do produto com download MD + PDF.
+
+### v1.1 (esta sessão)
+- **Importação de CSV de extrato bancário** com auto-categorização inteligente via regex (bancos: Nubank, Itaú, Bradesco, Santander, Inter, C6). Componente `CSVImport.jsx` + `lib/csvImport.js`. Modal review para confirmar antes de aplicar.
+- **Calculadora Pública de Juros Compostos** (rota pública `/calculadora`, sem sidebar) — lead magnet com email capture (armazenado em localStorage `finpremium_leads`). Ideal para tráfego pago.
+- **Widget de Instagram Story** — gera PNG 1080×1920 via Canvas com stats do usuário + branding + CTA. Componente `ShareStory.jsx`.
 
 ## Design System
-- Cores: Void #07060A, Surface #131218, Elevated #1B1A22, Dourado #C9A961, Bright #E8CE87, Deep #8B7A3E, Text #F5F0E1.
+- Cores: Void #07060A, Surface #131218, Elevated #1B1A22, Dourado #C9A961, Bright #E8CE87, Deep #8B7A3E.
 - Fontes: Fraunces (display serif) + Manrope (body).
-- Componentes: card-premium (backdrop-blur + borda superior dourada), btn-gold (pill gradient), thermometer, chip.
-- Micro-interações: fade-up, shimmer em títulos hero, grão SVG, hover cards com border-color dourado.
+- Componentes: card-premium (backdrop-blur + gradient superior dourado), btn-gold (pill), thermometer, chip.
+- Micro-interações: fade-up, shimmer, grão SVG.
 
-## Automações implementadas
-- Cálculo automático de saldo, delta%, taxa de poupança, distribuição por categoria.
-- Alertas de estouro (>5% sobre planejado).
-- Simulador de quitação (Snowball / Avalanche) com composto mensal.
-- Cálculo FIRE via fórmula de valor futuro (log ratio).
-- Export MD + PDF via jsPDF.
+## Bugs corrigidos
+- v1.0 → Simulador de dívidas com juros astronômicos quando parcelas < juros (baseline não convergia). Fix: exibir "—" e aviso.
+- v1.1 → Auto-categorização classificava "XP Investimentos" como Necessidades porque "invesTIMentos" continha "tim" (operadora). Fix: word boundaries + reordenar regras (investimentos primeiro).
 
 ## Backlog / próximas iterações
-- P1: Import CSV de extrato bancário com auto-categorização.
-- P1: Backend FastAPI + MongoDB para multi-device sync (opcional).
-- P2: Notificações WhatsApp via Twilio.
-- P2: Modo de compartilhamento de widgets (Instagram Story).
+- P2: Twilio WhatsApp — notificação quando categoria estoura 90% (exige API keys do usuário).
+- P2: Backend FastAPI + MongoDB para sync multi-device (opcional, contraria escolha single-user).
 - P2: Comparativo mensal (M-1 vs M) com histórico persistido.
-- P2: Modo de família / multi-perfil.
-
-## Melhorias implementadas nesta sessão
-- Correção: baseline não convergente no simulador de dívidas (mostra "—" e aviso quando parcelas mínimas < juros).
+- P3: Modo família / multi-perfil.
+- P3: Integração com bancos via Open Finance (versão pro).
 
 ## Datas
-- 2026-01-11 — MVP v1.0 completo (6 telas + escopo).
+- 2026-01-11 — MVP v1.0 (6 telas + escopo).
+- 2026-01-11 — v1.1 (CSV import + calculadora pública + share story).

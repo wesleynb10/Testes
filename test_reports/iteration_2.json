@@ -1,0 +1,25 @@
+{
+  "summary": "v1.1 frontend testing — 20/20 checks passed. Validated: (1) /calculadora public route without sidebar, dynamic H1 title, sliders/inputs, BRL result card, 2-series area chart, lead-form persistence to localStorage 'finpremium_leads'. (2) Sidebar nav-calculadora positioned correctly between Metas and Bônus. (3) ShareStory modal with canvas 1080x1920, regenerate, download (finpremium-story-YYYY-MM-DD.png), close all working. (4) CSVImport upload → review → done flow works; all 7 test transactions auto-categorized correctly including 'XP Investimentos aporte' → investimentos (regression fix confirmed with word boundaries). csv-apply increments budget items (Aluguel actual: 1600 → 3200). (5) All 6 legacy routes still render without errors. Debts.jsx confirmed clean.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      { "screen": "Recharts containers", "issues": ["Console warns 'width(-1) and height(-1)' intermittently during route transitions — harmless but noisy in dev console"] }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Sidebar footer still displays 'v1.0 · Premium Edition' — should bump to v1.1 given new features shipped",
+    "CSVImport aggregates by (category::subcategory) and calls updateBudgetItem/addBudgetItem but the 'planned' field is left unchanged on updates — user may see actual > planned inflation. Consider also bumping planned or exposing this as configurable in review step",
+    "ShareStory.draw uses ctx.letterSpacing (line 83) — non-standard Canvas API property; ignored silently in all major browsers. Harmless but dead code",
+    "Calculator: rate slider label shows Selic proxy (rate*12)% a.a. — simple approximation, doesn't compound correctly, could mislead users"
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A", "frontend": "100% (20/20)" },
+  "seed_data_creation": "Ephemeral CSV file created at /tmp/test_extrato.csv during test run (7 BR-format transactions).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 3 new v1.1 features validated end-to-end. Auto-categorization regex now correctly prioritizes investimentos over necessidades (word-boundary \\btim\\b prevents 'invesTIMentos' false positive). CSV import path is Budget → open-csv-import → csv-dropzone/csv-input (set_input_files) → csv-review → csv-apply → csv-done → csv-finish."
+}
