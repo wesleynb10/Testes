@@ -114,6 +114,7 @@ export default function SalesPage() {
   const nav = useNavigate();
   const [packages, setPackages] = useState({});
   const [loading, setLoading] = useState(null);
+  const [checkoutError, setCheckoutError] = useState(null);
   const [email, setEmail] = useState("");
   const [openFaq, setOpenFaq] = useState(null);
   const [timeLeft, setTimeLeft] = useState({ h: 47, m: 59, s: 59 });
@@ -141,6 +142,7 @@ export default function SalesPage() {
 
   const handleBuy = async (packageId) => {
     setLoading(packageId);
+    setCheckoutError(null);
     try {
       const { data } = await axios.post(`${API}/checkout/session`, {
         package_id: packageId,
@@ -149,7 +151,7 @@ export default function SalesPage() {
       });
       window.location.href = data.url;
     } catch (e) {
-      alert("Erro ao iniciar checkout. Tente novamente.");
+      setCheckoutError("Não conseguimos iniciar o checkout agora. Tente novamente em alguns segundos.");
       console.error(e);
       setLoading(null);
     }
@@ -417,6 +419,14 @@ export default function SalesPage() {
           </div>
         </div>
       </section>
+
+      <footer className="border-t border-[var(--ink-line)] py-8 text-center text-[11px]" style={{ color: "var(--text-muted)" }}>
+        FinPremium · Wealth OS · © 2026 · <button onClick={() => nav("/")} className="underline">Voltar ao app</button>
+      </footer>
+    </div>
+  );
+}
+ection>
 
       <footer className="border-t border-[var(--ink-line)] py-8 text-center text-[11px]" style={{ color: "var(--text-muted)" }}>
         FinPremium · Wealth OS · © 2026 · <button onClick={() => nav("/")} className="underline">Voltar ao app</button>

@@ -65,3 +65,12 @@ Usuário quer criar um infoproduto de Finanças Pessoais para vender via tráfeg
 ## Datas
 - 2026-01-11 — MVP v1.0 (6 telas + escopo).
 - 2026-01-11 — v1.1 (CSV import + calculadora pública + share story).
+
+## v1.2 (2026-01-11) — Monetização Ativada
+- **Landing de vendas `/venda`** — hero + dor + solução + depoimentos + bônus (com valor riscado) + contador de urgência 48h + 3 pacotes (Starter R$47, Completo R$97 destaque, Plus R$297) + FAQ + CTA final.
+- **Checkout Stripe integrado** — backend endpoints `/api/packages`, `/api/checkout/session`, `/api/checkout/status/{id}`, `/api/webhook/stripe`. PACKAGES é server-side (nunca aceita amount do frontend).
+- **Página `/obrigado`** — polling do status Stripe (até 8x/2s), estados: checking → paid/pending/expired/error.
+- **Lead capture no backend** — calculadora pública agora persiste em MongoDB (`db.leads`) via POST `/api/leads`, além do localStorage.
+- **CTA da página Bônus** — agora navega para `/venda` (era botão morto).
+- Config: STRIPE_API_KEY=sk_test_emergent no `backend/.env` (test key Emergent, sem custo).
+- Testado: 8/8 backend + 100% frontend flows.
