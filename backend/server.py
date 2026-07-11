@@ -17,6 +17,12 @@ from emergentintegrations.payments.stripe.checkout import (
     CheckoutSessionRequest,
 )
 
+from email_service import (
+    notify_new_lead,
+    send_customer_welcome,
+    notify_owner_sale,
+)
+
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -107,6 +113,11 @@ async def create_lead(payload: LeadCreate):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.leads.insert_one(doc)
+    # Fire-and-forget owner notification
+    try:
+        await notify_new_lead(doc["email"], doc["source"], doc["metadata"])
+    except Exception as e:
+        logging.warning(f"Lead notify failed: {e}")
     return {"success": True, "id": doc["id"]}
 
 @api_router.get("/leads/count")
@@ -175,12 +186,15 @@ async def create_checkout_session(payload: CheckoutCreateRequest, http_request: 
 @api_router.get("/checkout/status/{session_id}")
 async def get_checkout_status(session_id: str):
     stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url="")
-    status: CheckoutStatusResponse = await stripe_checkout.get_checkout_status(session_id)
+    try:
+        status: CheckoutStatusResponse = await stripe_checkout.get_checkout_status(session_id)
+    except Exception as e:
+        logging.warning(f"Stripe status error for {session_id}: {e}")
+        raise HTTPException(status_code=404, detail="Session not found or expired")
 
     # Update transaction if it exists (idempotent — only if payment_status changed to paid)
     tx = await db.payment_transactions.find_one({"session_id": session_id})
     if tx:
-        # Only update if we're moving to a terminal state and haven't already processed
         already_paid = tx.get("payment_status") == "paid"
         if not already_paid:
             await db.payment_transactions.update_one(
@@ -191,6 +205,21 @@ async def get_checkout_status(session_id: str):
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }},
             )
+            # Trigger post-payment emails ONCE
+            if status.payment_status == "paid":
+                pkg_id = tx.get("package_id", "")
+                pkg = PACKAGES.get(pkg_id, {})
+                customer_email = tx.get("email") or ""
+                amount = tx.get("amount", 0)
+                pkg_name = pkg.get("name", pkg_id)
+                try:
+                    await send_customer_welcome(customer_email, pkg_name, amount, session_id)
+                except Exception as e:
+                    logging.warning(f"Welcome email failed: {e}")
+                try:
+                    await notify_owner_sale(pkg_name, amount, customer_email, session_id)
+                except Exception as e:
+                    logging.warning(f"Owner sale notify failed: {e}")
 
     return {
         "status": status.status,
@@ -221,6 +250,20 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         logging.error(f"Webhook error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@api_router.post("/test/email")
+async def test_email():
+    """Sends a lead-notification email to OWNER_EMAIL. Use this to verify Resend setup."""
+    try:
+        await notify_new_lead(
+            email="teste@finpremium.com.br",
+            source="teste-manual",
+            metadata={"initial": 1000, "monthly": 500, "years": 20, "rate": 0.9},
+        )
+        return {"success": True, "message": f"Email de teste enviado para {os.environ.get('OWNER_EMAIL')}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # =============================================================================

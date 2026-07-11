@@ -74,3 +74,13 @@ Usuário quer criar um infoproduto de Finanças Pessoais para vender via tráfeg
 - **CTA da página Bônus** — agora navega para `/venda` (era botão morto).
 - Config: STRIPE_API_KEY=sk_test_emergent no `backend/.env` (test key Emergent, sem custo).
 - Testado: 8/8 backend + 100% frontend flows.
+
+## v1.3 (2026-01-11) — Autoresponder Resend
+- **Email transacional pós-compra** — quando `/api/checkout/status/{id}` detecta payment_status=paid pela primeira vez, dispara:
+  - Email de boas-vindas para o cliente (template HTML dark premium com CTA, lista de bônus e próximos passos).
+  - Notificação de venda para o owner (wesleynb10@gmail.com) com valor + email do comprador.
+- **Notificação de lead** — cada POST /api/leads dispara email pro owner com dados da simulação da calculadora.
+- **Endpoint de teste** POST /api/test/email — envia email de teste ao OWNER_EMAIL.
+- Módulo: `/app/backend/email_service.py` — templates HTML inline + `send_email` async via `asyncio.to_thread`.
+- Config `.env`: RESEND_API_KEY, SENDER_EMAIL, OWNER_EMAIL.
+- ⚠️ Test mode do Resend: emails só chegam em endereços verificados na conta. Owner recebe sempre (é o dono da conta). Emails para clientes precisam domínio verificado para ir em produção.
