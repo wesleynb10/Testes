@@ -70,7 +70,7 @@ export default function Sidebar() {
       {/* Footer */}
       <div className="px-6 py-5 border-t border-[var(--ink-line)]">
         <div className="text-[10px] uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
-          v1.0 · Premium Edition
+          v1.1 · Premium Edition
         </div>
         <div className="mt-1 text-[12px]" style={{ color: "var(--text-secondary)" }}>
           Feito para quem <span className="text-shimmer font-semibold">domina o próprio dinheiro.</span>

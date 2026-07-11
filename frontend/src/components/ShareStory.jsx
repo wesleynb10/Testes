@@ -80,7 +80,6 @@ export default function ShareStory({ stats, onClose }) {
     // ==================== EYEBROW ====================
     ctx.fillStyle = "#C9A961";
     ctx.font = "600 26px Manrope, Arial, sans-serif";
-    ctx.letterSpacing = "5px";
     ctx.fillText("MEU JANEIRO NO CONTROLE", 90, 380);
 
     // ==================== HERO STAT ====================
