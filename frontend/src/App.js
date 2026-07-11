@@ -11,13 +11,16 @@ import Scope from "@/pages/Scope";
 import Calculator from "@/pages/Calculator";
 import SalesPage from "@/pages/SalesPage";
 import ThankYou from "@/pages/ThankYou";
+import AdminLogin from "@/pages/AdminLogin";
+import AdminDashboard from "@/pages/AdminDashboard";
 import { FinanceProvider } from "@/context/FinanceContext";
+import { AuthProvider } from "@/context/AuthContext";
 
 function Shell({ children }) {
   const location = useLocation();
   // Public routes have their own layout (no sidebar)
-  const publicRoutes = ["/calculadora", "/venda", "/obrigado"];
-  const isPublic = publicRoutes.includes(location.pathname);
+  const publicRoutes = ["/calculadora", "/venda", "/obrigado", "/admin", "/admin/login"];
+  const isPublic = publicRoutes.some((r) => location.pathname === r || location.pathname.startsWith(r + "/"));
   if (isPublic) return <div className="grain min-h-screen">{children}</div>;
   return (
     <div className="grain flex" style={{ minHeight: "100vh" }}>
@@ -29,23 +32,27 @@ function Shell({ children }) {
 
 function App() {
   return (
-    <FinanceProvider>
-      <BrowserRouter>
-        <Shell>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/orcamento" element={<Budget />} />
-            <Route path="/dividas" element={<Debts />} />
-            <Route path="/metas" element={<Goals />} />
-            <Route path="/calculadora" element={<Calculator />} />
-            <Route path="/venda" element={<SalesPage />} />
-            <Route path="/obrigado" element={<ThankYou />} />
-            <Route path="/bonus" element={<Bonus />} />
-            <Route path="/escopo" element={<Scope />} />
-          </Routes>
-        </Shell>
-      </BrowserRouter>
-    </FinanceProvider>
+    <AuthProvider>
+      <FinanceProvider>
+        <BrowserRouter>
+          <Shell>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/orcamento" element={<Budget />} />
+              <Route path="/dividas" element={<Debts />} />
+              <Route path="/metas" element={<Goals />} />
+              <Route path="/calculadora" element={<Calculator />} />
+              <Route path="/venda" element={<SalesPage />} />
+              <Route path="/obrigado" element={<ThankYou />} />
+              <Route path="/bonus" element={<Bonus />} />
+              <Route path="/escopo" element={<Scope />} />
+              <Route path="/admin/login" element={<AdminLogin />} />
+              <Route path="/admin" element={<AdminDashboard />} />
+            </Routes>
+          </Shell>
+        </BrowserRouter>
+      </FinanceProvider>
+    </AuthProvider>
   );
 }
 

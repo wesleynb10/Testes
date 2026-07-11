@@ -1,0 +1,41 @@
+{
+  "summary": "v1.4 auth + admin panel tested end-to-end. Backend: 16/17 pytest tests passed. Frontend: admin login, dashboard, tabs, lead/sale rows, logout all work perfectly with data-testid selectors. Single critical issue: brute force lockout does NOT trigger behind Kubernetes ingress because request.client.host resolves to different pod IPs per request (10.66.12.2, 10.66.1.198), splitting the {IP:email} identifier across records. Verified 7 wrong-password attempts all returned 401, never 429. All regression endpoints (packages, leads, checkout, root) still pass.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/auth/login (brute force protection)",
+        "issue": "Lockout never fires in production. Identifier uses request.client.host which is the ingress-proxied per-request pod IP; MongoDB shows attempts split across '10.66.12.2:email' and '10.66.1.198:email'. Must use X-Forwarded-For header (first IP) to identify the real client. Reproduced with 7 consecutive wrong-password POSTs — all returned 401, none 429.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auth_admin.py",
+    "/app/test_reports/pytest/v14_results.xml"
+  ],
+  "action_items": [
+    "Fix brute-force identifier in /app/backend/server.py login endpoint: replace 'ip = request.client.host' with parsing of request.headers.get('X-Forwarded-For', '').split(',')[0].strip() (fallback to request.client.host). This is required for the 5-attempt lockout to work in the ingress environment."
+  ],
+  "critical_code_review_comments": [
+    "auth_service.get_current_user: password_hash/_id are popped correctly. Good.",
+    "server.login: uses request.client.host — broken behind ingress. Use X-Forwarded-For.",
+    "server.timedelta_days helper is oddly placed but works.",
+    "server.py CORS uses explicit FRONTEND_URL — required for credentials cookies. Good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_auth_admin.py (new)"
+  ],
+  "success_rate": {"backend": "94% (16/17)", "frontend": "100%"},
+  "test_credentials": "wesleynb10@gmail.com / FinPremium2026! (admin)",
+  "seed_data_creation": "None (used existing leads/transactions from previous iterations)",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend brute-force lockout is the only failing test. After fix, re-run test_brute_force_lockout_after_5_attempts. Frontend admin panel is fully functional and validated. Existing test_auth_admin.py has 17 tests covering login/logout/me/admin/regression.",
+  "rca of the issue": "ROOT CAUSE: Kubernetes ingress load-balances incoming HTTP requests across multiple backend pod replicas. FastAPI's request.client.host returns the immediate TCP peer (a different pod-internal IP per hop) rather than the real client IP. The brute-force identifier '{ip}:{email}' therefore fragments across at least 2 IPs (observed 10.66.12.2 and 10.66.1.198 in login_attempts collection). No single record ever reaches attempts>=5, so check_lockout never raises 429. FIX: extract real client IP from X-Forwarded-For header (take first entry). Optional: also switch to email-only identifier for stricter policy."
+}

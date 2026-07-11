@@ -426,11 +426,3 @@ export default function SalesPage() {
     </div>
   );
 }
-ection>
-
-      <footer className="border-t border-[var(--ink-line)] py-8 text-center text-[11px]" style={{ color: "var(--text-muted)" }}>
-        FinPremium · Wealth OS · © 2026 · <button onClick={() => nav("/")} className="underline">Voltar ao app</button>
-      </footer>
-    </div>
-  );
-}

@@ -10,6 +10,7 @@ import {
   Gem,
   Calculator as CalcIcon,
   ShoppingBag,
+  Lock,
 } from "lucide-react";
 
 const items = [
@@ -19,6 +20,7 @@ const items = [
   { to: "/metas", label: "Metas & Liberdade", icon: Target, id: "nav-metas" },
   { to: "/calculadora", label: "Calculadora Pública", icon: CalcIcon, id: "nav-calculadora" },
   { to: "/venda", label: "Landing de Vendas", icon: ShoppingBag, id: "nav-venda" },
+  { to: "/admin", label: "Painel Admin", icon: Lock, id: "nav-admin" },
   { to: "/bonus", label: "Bônus Premium", icon: Gift, id: "nav-bonus" },
   { to: "/escopo", label: "Escopo do Produto", icon: FileText, id: "nav-escopo" },
 ];

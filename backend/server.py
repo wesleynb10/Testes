@@ -1,10 +1,13 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Request
 from dotenv import load_dotenv
+from pathlib import Path
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
-from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import uuid
@@ -23,9 +26,15 @@ from email_service import (
     notify_owner_sale,
 )
 
+from auth_service import (
+    hash_password, verify_password,
+    create_access_token, create_refresh_token,
+    set_auth_cookies, clear_auth_cookies,
+    get_current_user as _get_current_user,
+    check_lockout, record_failed_attempt, clear_attempts,
+    seed_admin, create_indexes,
+)
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -39,27 +48,15 @@ api_router = APIRouter(prefix="/api")
 
 
 # =============================================================================
-# PACKAGES — server-side fixed pricing (never trust the frontend)
+# PACKAGES
 # =============================================================================
 PACKAGES: Dict[str, Dict[str, Any]] = {
-    "starter": {
-        "name": "FinPremium Starter",
-        "amount": 47.00,
-        "currency": "brl",
-        "description": "Planilha + 3 bônus básicos",
-    },
-    "complete": {
-        "name": "FinPremium Completo",
-        "amount": 97.00,
-        "currency": "brl",
-        "description": "Planilha + 6 bônus + comunidade + acesso vitalício",
-    },
-    "premium_plus": {
-        "name": "FinPremium Plus + Mentoria",
-        "amount": 297.00,
-        "currency": "brl",
-        "description": "Tudo + mentoria em grupo mensal + suporte prioritário",
-    },
+    "starter": {"name": "FinPremium Starter", "amount": 47.00, "currency": "brl",
+                "description": "Planilha + 3 bônus básicos"},
+    "complete": {"name": "FinPremium Completo", "amount": 97.00, "currency": "brl",
+                 "description": "Planilha + 6 bônus + comunidade + acesso vitalício"},
+    "premium_plus": {"name": "FinPremium Plus + Mentoria", "amount": 297.00, "currency": "brl",
+                     "description": "Tudo + mentoria em grupo mensal + suporte prioritário"},
 }
 
 
@@ -85,13 +82,22 @@ class LeadCreate(BaseModel):
     source: Optional[str] = "calculadora"
     metadata: Optional[Dict[str, Any]] = None
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+# Dependency wrapper (closure over db)
+async def get_current_user(request: Request):
+    return await _get_current_user(request, db)
+
 
 # =============================================================================
 # BASIC ROUTES
 # =============================================================================
 @api_router.get("/")
 async def root():
-    return {"message": "FinPremium API v1.2 - Wealth OS"}
+    return {"message": "FinPremium API v1.4 - Wealth OS"}
 
 @api_router.get("/packages")
 async def get_packages():
@@ -99,7 +105,42 @@ async def get_packages():
 
 
 # =============================================================================
-# LEADS
+# AUTH
+# =============================================================================
+@api_router.post("/auth/login")
+async def login(payload: LoginRequest, request: Request, response: Response):
+    email = payload.email.lower().strip()
+    ip = request.client.host if request.client else "unknown"
+    identifier = f"{ip}:{email}"
+    await check_lockout(db, identifier)
+
+    user = await db.users.find_one({"email": email})
+    if not user or not verify_password(payload.password, user["password_hash"]):
+        await record_failed_attempt(db, identifier)
+        raise HTTPException(status_code=401, detail="Email ou senha inválidos")
+
+    await clear_attempts(db, identifier)
+    access = create_access_token(user["id"], user["email"])
+    refresh = create_refresh_token(user["id"])
+    set_auth_cookies(response, access, refresh)
+    return {
+        "id": user["id"], "email": user["email"], "name": user.get("name", ""), "role": user.get("role", "user"),
+    }
+
+
+@api_router.post("/auth/logout")
+async def logout(response: Response, current: dict = Depends(get_current_user)):
+    clear_auth_cookies(response)
+    return {"success": True}
+
+
+@api_router.get("/auth/me")
+async def me(current: dict = Depends(get_current_user)):
+    return current
+
+
+# =============================================================================
+# LEADS (public)
 # =============================================================================
 @api_router.post("/leads")
 async def create_lead(payload: LeadCreate):
@@ -113,7 +154,6 @@ async def create_lead(payload: LeadCreate):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.leads.insert_one(doc)
-    # Fire-and-forget owner notification
     try:
         await notify_new_lead(doc["email"], doc["source"], doc["metadata"])
     except Exception as e:
@@ -127,7 +167,7 @@ async def leads_count():
 
 
 # =============================================================================
-# STRIPE CHECKOUT
+# STRIPE CHECKOUT (public)
 # =============================================================================
 @api_router.post("/checkout/session")
 async def create_checkout_session(payload: CheckoutCreateRequest, http_request: Request):
@@ -138,7 +178,6 @@ async def create_checkout_session(payload: CheckoutCreateRequest, http_request: 
     amount = float(pkg["amount"])
     currency = pkg["currency"]
 
-    # Build success/cancel URLs from provided origin
     origin = payload.origin_url.rstrip("/")
     success_url = f"{origin}/obrigado?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}/venda"
@@ -155,16 +194,12 @@ async def create_checkout_session(payload: CheckoutCreateRequest, http_request: 
     }
 
     checkout_request = CheckoutSessionRequest(
-        amount=amount,
-        currency=currency,
-        success_url=success_url,
-        cancel_url=cancel_url,
+        amount=amount, currency=currency,
+        success_url=success_url, cancel_url=cancel_url,
         metadata=metadata,
     )
-
     session: CheckoutSessionResponse = await stripe_checkout.create_checkout_session(checkout_request)
 
-    # Record transaction as pending
     tx = {
         "id": str(uuid.uuid4()),
         "session_id": session.session_id,
@@ -179,7 +214,6 @@ async def create_checkout_session(payload: CheckoutCreateRequest, http_request: 
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.payment_transactions.insert_one(tx)
-
     return {"url": session.url, "session_id": session.session_id}
 
 
@@ -192,7 +226,6 @@ async def get_checkout_status(session_id: str):
         logging.warning(f"Stripe status error for {session_id}: {e}")
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
-    # Update transaction if it exists (idempotent — only if payment_status changed to paid)
     tx = await db.payment_transactions.find_one({"session_id": session_id})
     if tx:
         already_paid = tx.get("payment_status") == "paid"
@@ -205,7 +238,6 @@ async def get_checkout_status(session_id: str):
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }},
             )
-            # Trigger post-payment emails ONCE
             if status.payment_status == "paid":
                 pkg_id = tx.get("package_id", "")
                 pkg = PACKAGES.get(pkg_id, {})
@@ -254,20 +286,73 @@ async def stripe_webhook(request: Request):
 
 @api_router.post("/test/email")
 async def test_email():
-    """Sends a lead-notification email to OWNER_EMAIL. Use this to verify Resend setup."""
     try:
         await notify_new_lead(
             email="teste@finpremium.com.br",
             source="teste-manual",
             metadata={"initial": 1000, "monthly": 500, "years": 20, "rate": 0.9},
         )
-        return {"success": True, "message": f"Email de teste enviado para {os.environ.get('OWNER_EMAIL')}"}
+        return {"success": True, "message": f"Email enviado para {os.environ.get('OWNER_EMAIL')}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # =============================================================================
-# LEGACY status endpoints (kept for compatibility)
+# ADMIN (protected)
+# =============================================================================
+@api_router.get("/admin/dashboard")
+async def admin_dashboard(current: dict = Depends(get_current_user)):
+    # KPIs
+    total_leads = await db.leads.count_documents({})
+    total_tx = await db.payment_transactions.count_documents({})
+    paid_tx = await db.payment_transactions.count_documents({"payment_status": "paid"})
+    # Revenue: sum of amount for paid transactions
+    pipeline = [
+        {"$match": {"payment_status": "paid"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+    ]
+    rev_result = await db.payment_transactions.aggregate(pipeline).to_list(length=1)
+    revenue = float(rev_result[0]["total"]) if rev_result else 0.0
+
+    # Conversion rate: paid_tx / total_leads (rough)
+    conversion = (paid_tx / total_leads * 100) if total_leads > 0 else 0.0
+
+    # Last 7 days breakdown
+    seven_days_ago = (datetime.now(timezone.utc) - timedelta_days(7)).isoformat()
+    leads_last7 = await db.leads.count_documents({"created_at": {"$gte": seven_days_ago}})
+    tx_last7 = await db.payment_transactions.count_documents({"created_at": {"$gte": seven_days_ago}, "payment_status": "paid"})
+
+    return {
+        "total_leads": total_leads,
+        "total_transactions": total_tx,
+        "paid_transactions": paid_tx,
+        "revenue": revenue,
+        "conversion_rate": conversion,
+        "leads_last_7d": leads_last7,
+        "sales_last_7d": tx_last7,
+    }
+
+
+@api_router.get("/admin/leads")
+async def admin_leads(current: dict = Depends(get_current_user), limit: int = 200):
+    docs = await db.leads.find({}, {"_id": 0}).sort("created_at", -1).to_list(length=limit)
+    return {"leads": docs, "count": len(docs)}
+
+
+@api_router.get("/admin/transactions")
+async def admin_transactions(current: dict = Depends(get_current_user), limit: int = 200):
+    docs = await db.payment_transactions.find({}, {"_id": 0}).sort("created_at", -1).to_list(length=limit)
+    return {"transactions": docs, "count": len(docs)}
+
+
+# Helper (timedelta days)
+def timedelta_days(n):
+    from datetime import timedelta as _td
+    return _td(days=n)
+
+
+# =============================================================================
+# LEGACY status endpoints
 # =============================================================================
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
@@ -288,10 +373,12 @@ async def get_status_checks():
 
 app.include_router(api_router)
 
+# CORS — must use explicit origin (not *) when using credentials
+frontend_url = os.environ.get('FRONTEND_URL', 'https://wealth-control-25.preview.emergentagent.com')
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=[frontend_url],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -301,6 +388,17 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+@app.on_event("startup")
+async def startup():
+    try:
+        await create_indexes(db)
+        await seed_admin(db)
+        logger.info("Startup complete: indexes + admin seeded")
+    except Exception as e:
+        logger.error(f"Startup error: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
