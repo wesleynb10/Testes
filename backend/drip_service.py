@@ -187,33 +187,45 @@ async def send_due_emails(db):
 
     sent = 0
     for doc in due:
-        step = doc["step"]
-        template = TEMPLATES.get(step)
-        if not template:
-            await db.email_queue.update_one(
-                {"id": doc["id"]},
-                {"$set": {"status": "failed", "error": "no_template"}},
+        try:
+            step = doc["step"]
+            template = TEMPLATES.get(step)
+            if not template:
+                await db.email_queue.update_one(
+                    {"id": doc["id"]},
+                    {"$set": {"status": "failed", "error": "no_template"}},
+                )
+                continue
+            html = template(doc.get("metadata"))
+            email_id = await send_email(
+                to_email=doc["lead_email"],
+                subject=doc["subject"],
+                html=html,
+                tag=f"drip-step-{step}",
             )
-            continue
-        html = template(doc.get("metadata"))
-        email_id = await send_email(
-            to_email=doc["lead_email"],
-            subject=doc["subject"],
-            html=html,
-            tag=f"drip-step-{step}",
-        )
-        if email_id:
-            await db.email_queue.update_one(
-                {"id": doc["id"]},
-                {"$set": {"status": "sent", "sent_at": now.isoformat(), "email_id": email_id}},
-            )
-            sent += 1
-        else:
-            await db.email_queue.update_one(
-                {"id": doc["id"]},
-                {"$set": {"status": "failed", "error": "send_failed",
-                          "failed_at": now.isoformat()}},
-            )
+            if email_id:
+                await db.email_queue.update_one(
+                    {"id": doc["id"]},
+                    {"$set": {"status": "sent", "sent_at": now.isoformat(), "email_id": email_id}},
+                )
+                sent += 1
+            else:
+                await db.email_queue.update_one(
+                    {"id": doc["id"]},
+                    {"$set": {"status": "failed", "error": "send_failed",
+                              "failed_at": now.isoformat()}},
+                )
+        except Exception as e:
+            # Never let a single doc break the whole loop
+            logger.exception(f"[drip] exception processing doc {doc.get('id')}: {e}")
+            try:
+                await db.email_queue.update_one(
+                    {"id": doc["id"]},
+                    {"$set": {"status": "failed", "error": str(e)[:200],
+                              "failed_at": now.isoformat()}},
+                )
+            except Exception:
+                pass
     if sent:
         logger.info(f"[drip] sent {sent} emails")
     return sent

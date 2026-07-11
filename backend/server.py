@@ -296,6 +296,14 @@ async def stripe_webhook(request: Request):
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }},
             )
+            # Also cancel drip if this is the paid event
+            if event.payment_status == "paid":
+                tx = await db.payment_transactions.find_one({"session_id": event.session_id})
+                if tx and tx.get("email"):
+                    try:
+                        await cancel_drip_for_email(db, tx["email"], reason="purchased_webhook")
+                    except Exception as e:
+                        logging.warning(f"Webhook drip cancel failed: {e}")
         return {"received": True}
     except Exception as e:
         logging.error(f"Webhook error: {e}")

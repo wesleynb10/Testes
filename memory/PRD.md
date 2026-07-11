@@ -106,3 +106,20 @@ Usuário quer criar um infoproduto de Finanças Pessoais para vender via tráfeg
 - P2: Verificação de domínio Resend para envio real a clientes.
 - P3: Assinatura recorrente Pro R$ 19,90/mês.
 - P3: Rate limit refinado (email-only para IP anônimo).
+
+## v1.5 (2026-01-11) — Sequência de Nutrição de Leads (Drip Campaign)
+- **5 emails automáticos** disparados para leads da calculadora que não convertem:
+  - Dia 1: Relatório personalizado (baseado nos números da simulação)
+  - Dia 3: Case real (Rafael, 41 anos)
+  - Dia 5: Cupom SAVE20 (R$ 77 em vez de R$ 97, 48h)
+  - Dia 9: Última chance
+  - Dia 14: Pesquisa "o que faltou"
+- **Cancelamento automático**: se o lead compra, todos os emails pending viram `cancelled` (via /api/checkout/status E via webhook Stripe).
+- **Worker background asyncio** roda a cada 60s, verifica fila `db.email_queue`, envia emails devidos.
+- **Painel admin — aba "Sequência de Emails"**: 4 KPIs (Agendados/Enviados/Cancelados/Falhas) + tabela da fila + botão "Enviar agora" por lead (útil para testes) + "Verificar fila agora".
+- **Robustez**: cada iteração do worker isola exceções por doc (não trava a fila se um email falha).
+- Testado: 100% (33/33 backend + 100% frontend).
+
+## Melhorias aplicadas nesta sessão (review pós-teste)
+- Cancelamento de drip também via webhook Stripe (não só polling).
+- Loop send_due_emails com try/except por documento — resiliência.
