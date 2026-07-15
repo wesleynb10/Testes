@@ -40,6 +40,8 @@ from drip_service import (
     fire_next_email_for_lead, send_due_emails,
 )
 
+from twilio_webhook import router as twilio_router, ensure_twilio_indexes
+
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -49,7 +51,9 @@ db = client[os.environ['DB_NAME']]
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
 
 app = FastAPI()
+app.state.db = db
 api_router = APIRouter(prefix="/api")
+api_router.include_router(twilio_router)
 
 
 # =============================================================================
@@ -434,12 +438,18 @@ async def get_status_checks():
 
 app.include_router(api_router)
 
-# CORS — must use explicit origin (not *) when using credentials
-frontend_url = os.environ.get('FRONTEND_URL', 'https://wealth-control-25.preview.emergentagent.com')
+# CORS — must use explicit origins (not *) when using credentials
+_frontend = os.environ.get('FRONTEND_URL', 'https://wealth-control-25.preview.emergentagent.com')
+_cors_extra = os.environ.get('CORS_ORIGINS', '')
+_cors_origins = []
+for part in [_frontend] + _cors_extra.split(','):
+    origin = part.strip().rstrip('/')
+    if origin and origin not in _cors_origins:
+        _cors_origins.append(origin)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[frontend_url],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -460,10 +470,11 @@ async def startup():
         await db.email_queue.create_index("status")
         await db.email_queue.create_index("send_at")
         await db.email_queue.create_index("lead_email")
+        await ensure_twilio_indexes(db)
         # Launch background drip worker
         import asyncio as _asyncio
         _asyncio.create_task(drip_worker_loop(db, interval_seconds=60))
-        logger.info("Startup complete: indexes + admin seeded + drip worker started")
+        logger.info("Startup complete: indexes + admin seeded + drip worker + twilio indexes")
     except Exception as e:
         logger.error(f"Startup error: {e}")
 

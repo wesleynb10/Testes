@@ -59,16 +59,24 @@ def create_refresh_token(user_id: str) -> str:
     return jwt.encode(payload, _secret(), algorithm=JWT_ALGORITHM)
 
 
+def _cookie_flags() -> dict:
+    # Local HTTP: Secure+SameSite=None is rejected by browsers.
+    # Cross-port 127.0.0.1 (3000↔8000) is same-site, so Lax works.
+    secure = os.environ.get("COOKIE_SECURE", "true").lower() in ("1", "true", "yes")
+    return {"httponly": True, "secure": secure, "samesite": "none" if secure else "lax"}
+
+
 def set_auth_cookies(response, access_token: str, refresh_token: str):
+    flags = _cookie_flags()
     response.set_cookie(
-        key="access_token", value=access_token, httponly=True,
-        secure=True, samesite="none",
+        key="access_token", value=access_token,
         max_age=ACCESS_TOKEN_TTL_MIN * 60, path="/",
+        **flags,
     )
     response.set_cookie(
-        key="refresh_token", value=refresh_token, httponly=True,
-        secure=True, samesite="none",
+        key="refresh_token", value=refresh_token,
         max_age=REFRESH_TOKEN_TTL_DAYS * 24 * 3600, path="/",
+        **flags,
     )
 
 
