@@ -111,7 +111,7 @@ export default function Transactions() {
             Seus lançamentos. <span className="text-shimmer">Cada real rastreado.</span>
           </h1>
           <p className="mt-3 text-[15px] max-w-xl" style={{ color: "var(--text-secondary)" }}>
-            Registros do app e os que você envia pelo WhatsApp, tudo no mesmo lugar.
+            Registros do app e os que você envia pelo WhatsApp (texto, foto ou áudio), tudo no mesmo lugar.
           </p>
         </div>
         <div className="card-gold px-6 py-4 text-right">
@@ -176,7 +176,7 @@ export default function Transactions() {
           <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--gold-bright)" }} /></div>
         ) : items.length === 0 ? (
           <div className="py-12 text-center text-[14px]" style={{ color: "var(--text-muted)" }}>
-            Nenhum lançamento ainda. Adicione acima ou mande uma mensagem no WhatsApp.
+            Nenhum lançamento ainda. Adicione acima ou mande texto, foto ou áudio no WhatsApp.
           </div>
         ) : (
           <div className="space-y-2">

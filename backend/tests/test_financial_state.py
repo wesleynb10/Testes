@@ -51,6 +51,7 @@ def test_clean_state_ignores_client_actual_and_sanitizes_numbers():
                     "balance": "1200",
                     "rate": "9.5",
                     "minPayment": "180",
+                    "termMonths": "24",
                 }
             ],
             "goals": [],
@@ -62,6 +63,18 @@ def test_clean_state_ignores_client_actual_and_sanitizes_numbers():
     assert state["budget"]["necessidades"][0]["planned"] == 850.5
     assert state["budget"]["necessidades"][0]["actual"] == 0
     assert state["debts"][0]["rate"] == 9.5
+    assert state["debts"][0]["termMonths"] == 24
+
+
+def test_debt_term_months_defaults_to_zero_when_missing():
+    state = clean_financial_state(
+        {
+            "debts": [
+                {"id": "dv1", "name": "Cartão", "balance": 100, "rate": 1, "minPayment": 20}
+            ]
+        }
+    )
+    assert state["debts"][0]["termMonths"] == 0
 
 
 def test_normalize_label_matches_accents_and_punctuation():

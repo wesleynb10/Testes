@@ -29,9 +29,37 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Instagram,
+  Lightbulb,
 } from "lucide-react";
 
 const GOLD_PALETTE = ["#E8CE87", "#C9A961", "#8B7A3E", "#7A9AB8", "#7FB069", "#D46A6A", "#6B5D3A"];
+
+const PRIMARY_GOAL_COPY = {
+  sair_dividas: {
+    title: "Foco: sair das dívidas",
+    body: "Simule um aporte extra na tela de Dívidas — veja em quantos meses você fica livre e quanto de juros evita.",
+    cta: "Abrir simulador de dívidas",
+    path: "/app/dividas",
+  },
+  reserva: {
+    title: "Foco: reserva de emergência",
+    body: "Priorize guardar 3–6 meses de custo fixo. Ajuste a meta e veja o aporte mensal necessário em Metas.",
+    cta: "Configurar meta de reserva",
+    path: "/app/metas",
+  },
+  investir: {
+    title: "Foco: começar a investir",
+    body: "Use o what-if em Metas: se aportar um pouco mais por mês, o Número da Liberdade chega anos antes.",
+    cta: "Ver impacto do aporte",
+    path: "/app/metas",
+  },
+  liberdade: {
+    title: "Foco: independência financeira",
+    body: "Ajuste gasto futuro, SWR e aporte. Depois teste “e se eu aportar +R$ X?” para antecipar a liberdade.",
+    cta: "Calcular Número da Liberdade",
+    path: "/app/metas",
+  },
+};
 
 function TooltipDark({ active, payload, label }) {
   if (!active || !payload?.length) return null;
@@ -155,6 +183,8 @@ export default function Dashboard() {
     .slice(0, 3);
 
   const needsIncomeSetup = !(totalReceita > 0);
+  const goalHint = PRIMARY_GOAL_COPY[profile.primaryGoal] || null;
+  const debtBalance = (debts || []).reduce((s, d) => s + (d.balance || 0), 0);
 
   return (
     <div className="p-8 space-y-8" data-testid="dashboard-page">
@@ -187,7 +217,40 @@ export default function Dashboard() {
 
       <FirstWeekChecklist />
 
-      {/* KPI Row */}
+      {goalHint && !needsIncomeSetup && (
+        <section
+          className="card-premium p-5 flex items-start gap-4 flex-wrap"
+          data-testid="primary-goal-suggestion"
+          style={{ borderColor: "rgba(201,169,97,0.3)" }}
+        >
+          <div
+            className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: "rgba(201,169,97,0.12)", border: "1px solid rgba(201,169,97,0.25)" }}
+          >
+            <Lightbulb className="w-5 h-5" style={{ color: "var(--gold-bright)" }} />
+          </div>
+          <div className="flex-1 min-w-[220px]">
+            <div className="text-[14px] font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
+              {goalHint.title}
+            </div>
+            <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              {goalHint.body}
+              {profile.primaryGoal === "sair_dividas" && debtBalance > 0 && (
+                <> Saldo atual em dívidas: <span className="font-mono-num" style={{ color: "var(--danger)" }}>{brl(debtBalance)}</span>.</>
+              )}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-gold"
+            style={{ fontSize: 13, padding: "10px 16px" }}
+            onClick={() => nav(goalHint.path)}
+            data-testid="primary-goal-cta"
+          >
+            {goalHint.cta}
+          </button>
+        </section>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
         <KPI label="Receita do mês" value={brl(totalReceita)} icon={TrendingUp} testId="kpi-receita" />
         <KPI label="Gastos totais" value={brl(totalGastos)} delta={percentChange(totalGastos, previousMonth?.gastos)} tone="default" icon={TrendingDown} testId="kpi-gastos" />
@@ -429,15 +492,28 @@ export default function Dashboard() {
           )}
           <div className="mt-5 pt-5 border-t border-[var(--ink-line)]">
             <div className="kpi-label mb-3">Sugestão do Sistema</div>
-            <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }} data-testid="system-suggestion">
               {needsIncomeSetup
                 ? "Primeiro passo: informe sua renda líquida. Depois o sistema monta a regra 50/30/20 e as sugestões passam a fazer sentido."
-                : saldo > 0
-                  ? <>Redirecionar {brl(Math.min(saldo, 500))} do saldo deste mês para <span style={{ color: "var(--gold-bright)" }} className="font-semibold">Reserva de Emergência</span> ajuda a acelerar sua primeira meta financeira.</>
-                  : totalGastos > 0
-                    ? "Seu mês está no vermelho agora. Revise desejos no Orçamento e priorize o essencial antes de aumentar aportes."
-                    : "Comece registrando gastos no app ou pelo WhatsApp. Com dados reais, as sugestões ficam precisas."}
+                : goalHint
+                  ? goalHint.body
+                  : saldo > 0
+                    ? <>Redirecionar {brl(Math.min(saldo, 500))} do saldo deste mês para <span style={{ color: "var(--gold-bright)" }} className="font-semibold">Reserva de Emergência</span> ajuda a acelerar sua primeira meta financeira.</>
+                    : totalGastos > 0
+                      ? "Seu mês está no vermelho agora. Revise desejos no Orçamento e priorize o essencial antes de aumentar aportes."
+                      : "Comece registrando gastos no app ou pelo WhatsApp. Com dados reais, as sugestões ficam precisas."}
             </p>
+            {goalHint && !needsIncomeSetup && (
+              <button
+                type="button"
+                className="btn-ghost mt-3"
+                style={{ fontSize: 12, padding: "8px 12px" }}
+                onClick={() => nav(goalHint.path)}
+                data-testid="system-suggestion-cta"
+              >
+                {goalHint.cta}
+              </button>
+            )}
           </div>
         </div>
       </div>

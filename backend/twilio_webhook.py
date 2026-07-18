@@ -22,10 +22,19 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
 
 from financial_state import ensure_transaction_budget_item
+from audio_transcription import (
+    AudioTranscriptionError,
+    download_twilio_audio,
+    parse_spoken_expense,
+    transcribe_audio_media,
+)
 from receipt_vision import (
     ReceiptVisionError,
     analyze_receipt_media,
     download_twilio_media,
+    is_audio_media_type,
+    is_receipt_media_type,
+    looks_like_audio_media,
     media_fingerprint,
 )
 
@@ -67,6 +76,59 @@ def twiml_message(texto: str) -> Response:
 # -----------------------------------------------------------------------------
 # Stub — Emergent AI
 # -----------------------------------------------------------------------------
+_SPEND_PATTERNS = (
+    r"(?:eu\s+)?gastei\s+(?:em|no|na|com|um|uma)?\s*(.+)$",
+    r"(?:eu\s+)?comprei\s+(?:um|uma|o|a)?\s*(.+)$",
+    r"(?:eu\s+)?paguei\s+(?:um|uma|o|a|em|no|na)?\s*(.+)$",
+    r"(?:foi|foi\s+um|foi\s+uma)\s+(.+)$",
+)
+
+
+def normalize_expense_description(raw: str) -> str:
+    """
+    Limpa fala informal para um nome de gasto curto.
+    "Oi, a gente eh, eu gastei em uma pizza" → "Pizza"
+    """
+    text = (raw or "").strip()
+    if not text:
+        return "Lançamento WhatsApp"
+
+    text = re.sub(r"(?i)r\$\s*\d[\d.,]*", " ", text)
+    text = re.sub(
+        r"(?i)\b(?:oi|olá|ola|e\s*a[ií]|fala|bom\s*dia|boa\s*tarde|boa\s*noite)\b[,!.]?",
+        " ",
+        text,
+    )
+    text = re.sub(
+        r"(?i)\b(?:eh|éh|ahn|tipo|então|entao|né|ne|assim|a\s+gente|eu)\b",
+        " ",
+        text,
+    )
+    text = re.sub(r"\s+", " ", text).strip(" ,.-")
+
+    for pattern in _SPEND_PATTERNS:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            text = match.group(1).strip()
+            break
+
+    text = re.sub(
+        r"(?i)\bno\s+(débito|debito|crédito|credito|pix|dinheiro)\b",
+        " ",
+        text,
+    )
+    text = re.sub(r"(?i)\b(?:reais?|centavos?)\b", " ", text)
+    text = re.sub(r"(?i)^\s*(?:um|uma|uns|umas|o|a|os|as)\s+", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" ,.-")
+
+    words = text.split()
+    if len(words) > 5:
+        text = " ".join(words[:5])
+    if not text:
+        return "Lançamento WhatsApp"
+    return text[:1].upper() + text[1:]
+
+
 def enviar_para_emergent_ai(texto: str) -> Dict[str, Any]:
     """
     Placeholder do agente inteligente Emergent AI.
@@ -125,7 +187,7 @@ def enviar_para_emergent_ai(texto: str) -> Dict[str, Any]:
     elif any(k in lower for k in ("invest", "ações", "acoes", "fii", "cdb", "tesouro", "previd")):
         categoria = "investimentos"
         subcategoria = "Aplicação"
-    elif any(k in lower for k in ("almoço", "almoco", "jantar", "restaurante", "ifood", "café", "cafe", "lazer", "cinema")):
+    elif any(k in lower for k in ("almoço", "almoco", "jantar", "restaurante", "ifood", "café", "cafe", "lazer", "cinema", "pizza", "hamburguer", "hamburger", "lanche")):
         categoria = "desejos"
         subcategoria = "Restaurantes"
 
@@ -139,15 +201,7 @@ def enviar_para_emergent_ai(texto: str) -> Dict[str, Any]:
     elif "dinheiro" in lower:
         forma = "dinheiro"
 
-    # Descrição: remove valor monetário e ruído de pagamento
-    descricao = re.sub(r"(?i)r\$\s*\d[\d.,]*", "", raw).strip()
-    descricao = re.sub(
-        r"(?i)\bno\s+(débito|debito|crédito|credito|pix|dinheiro)\b",
-        "",
-        descricao,
-    ).strip(" -–,.")
-    if not descricao:
-        descricao = "Lançamento WhatsApp"
+    descricao = normalize_expense_description(raw)
 
     return {
         "valor": round(amount, 2),
@@ -314,6 +368,50 @@ async def _handle_confirmation(
         raise
 
 
+async def _handle_audio_media(
+    db: AsyncIOMotorDatabase,
+    user: dict,
+    phone: str,
+    media_url: str,
+    media_type: str,
+) -> Response:
+    media = await download_twilio_audio(media_url, media_type)
+    transcript = await transcribe_audio_media(media, media_type)
+    logger.info(f"[twilio] audio transcript from={phone}: {transcript[:160]!r}")
+
+    confirmation = _confirmation_intent(transcript)
+    if confirmation is not None:
+        return await _handle_confirmation(
+            db, user, phone, transcript, confirmed=confirmation
+        )
+
+    try:
+        parsed = await parse_spoken_expense(transcript)
+    except AudioTranscriptionError as exc:
+        logger.warning(f"[twilio] spoken parse fallback from={phone}: {exc}")
+        parsed = enviar_para_emergent_ai(transcript)
+
+    if float(parsed.get("valor") or 0) <= 0:
+        return twiml_message(
+            f'Entendi o áudio ("{transcript[:80]}"), mas não identifiquei um valor. '
+            'Tente de novo, por exemplo: "Gastei R$ 42,50 numa pizza no débito".'
+        )
+
+    tx = await salvar_transacao(
+        db,
+        user,
+        phone,
+        transcript,
+        parsed,
+        source="whatsapp_audio",
+    )
+    valor_fmt = f"R$ {tx['amount']:.2f}".replace(".", ",")
+    return twiml_message(
+        f"Áudio entendido. Lançamento: {tx['description']} — {valor_fmt} "
+        f"({tx['category']}/{tx['subcategory']})."
+    )
+
+
 async def _handle_receipt_media(
     db: AsyncIOMotorDatabase,
     user: dict,
@@ -395,7 +493,7 @@ async def twilio_whatsapp_webhook(
     Campos form-urlencoded típicos da Twilio:
       From = whatsapp:+5511...
       Body = texto da mensagem
-      NumMedia / MediaUrl0 / MediaContentType0 = foto ou PDF opcional
+      NumMedia / MediaUrl0 / MediaContentType0 = foto, PDF ou áudio opcional
     """
     db: AsyncIOMotorDatabase = request.app.state.db
 
@@ -423,13 +521,28 @@ async def twilio_whatsapp_webhook(
         if NumMedia > 0:
             if not MediaUrl0:
                 raise ReceiptVisionError("A Twilio não enviou a URL do arquivo.")
-            return await _handle_receipt_media(
-                db,
-                user,
-                phone,
-                body,
-                MediaUrl0,
-                MediaContentType0,
+            if is_audio_media_type(MediaContentType0) or looks_like_audio_media(
+                MediaContentType0, MediaUrl0
+            ):
+                return await _handle_audio_media(
+                    db,
+                    user,
+                    phone,
+                    MediaUrl0,
+                    MediaContentType0 or "audio/ogg",
+                )
+            if is_receipt_media_type(MediaContentType0):
+                return await _handle_receipt_media(
+                    db,
+                    user,
+                    phone,
+                    body,
+                    MediaUrl0,
+                    MediaContentType0,
+                )
+            return twiml_message(
+                "Recebi um arquivo, mas ainda aceito só foto, PDF ou áudio de voz. "
+                "Você também pode escrever: Almoço R$ 42,50 no débito"
             )
 
         confirmation = _confirmation_intent(body)
@@ -440,7 +553,8 @@ async def twilio_whatsapp_webhook(
 
         if not body:
             return twiml_message(
-                "Envie uma foto ou PDF do comprovante, ou escreva: Almoço R$ 42,50 no débito"
+                "Envie uma foto/PDF do comprovante, um áudio de voz, "
+                "ou escreva: Almoço R$ 42,50 no débito"
             )
 
         parsed = enviar_para_emergent_ai(body)
@@ -453,6 +567,12 @@ async def twilio_whatsapp_webhook(
         return twiml_message(
             f"Lançamento realizado com sucesso! "
             f"{tx['description']} — {valor_fmt} ({tx['category']}/{tx['subcategory']})."
+        )
+    except AudioTranscriptionError as e:
+        logger.warning(f"[twilio] audio rejected from={phone}: {e}")
+        return twiml_message(
+            f"Não consegui processar o áudio: {e} "
+            "Você também pode escrever o valor, por exemplo: Mercado R$ 120,00 no pix."
         )
     except ReceiptVisionError as e:
         logger.warning(f"[twilio] receipt rejected from={phone}: {e}")

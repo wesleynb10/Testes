@@ -25,7 +25,8 @@
   /* Text */
   --text-primary: #F5F0E1;
   --text-secondary: #ADA79A;
-  --text-muted: #6E6A5F;
+  /* ~5.1:1 no void #07060A — WCAG AA para texto auxiliar */
+  --text-muted: #8E897C;
 
   /* Semantic */
   --success: #7FB069;
@@ -166,6 +167,11 @@ body {
 
 .btn-gold:active { transform: translateY(0); }
 
+.btn-gold:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--gold-glow), 0 4px 20px rgba(201, 169, 97, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
 .btn-ghost {
   background: transparent;
   color: var(--text-primary);
@@ -179,6 +185,11 @@ body {
 .btn-ghost:hover {
   border-color: var(--gold);
   color: var(--gold-bright);
+}
+.btn-ghost:focus-visible {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold-glow);
 }
 
 /* ============================================================
@@ -221,6 +232,12 @@ body {
 }
 .nav-item:hover {
   background: rgba(201, 169, 97, 0.06);
+  color: var(--text-primary);
+}
+.nav-item:focus-visible {
+  outline: none;
+  border-color: rgba(201, 169, 97, 0.45);
+  box-shadow: 0 0 0 3px var(--gold-glow);
   color: var(--text-primary);
 }
 .nav-item.active {
@@ -381,3 +398,14 @@ body {
 
 /* selection */
 ::selection { background: var(--gold); color: var(--ink-void); }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -158,7 +158,11 @@ def clean_financial_state(raw: Any, fallback_name: str = "Investidor") -> Dict[s
                 "name": _text(debt.get("name"), "Dívida", 120),
                 "balance": max(0.0, _number(debt.get("balance"))),
                 "rate": max(0.0, _number(debt.get("rate"))),
+                # am = % ao mês (padrão). aa = % ao ano (conversão linear /12 no simulador).
+                "ratePeriod": "aa" if str(debt.get("ratePeriod") or "").lower() == "aa" else "am",
                 "minPayment": max(0.0, _number(debt.get("minPayment"))),
+                # Meses restantes do contrato (0 = não informado / indeterminado).
+                "termMonths": max(0, min(600, int(_number(debt.get("termMonths"))))),
             }
         )
 

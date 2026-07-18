@@ -99,6 +99,8 @@ export function FinanceProvider({ children }) {
   const loadedUserRef = useRef(null);
   const skipNextSaveRef = useRef(true);
   const saveTimerRef = useRef(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   // O dono também pode usar a visão de cliente para testar o produto completo.
   // O backend continua isolando todos os dados pelo id da conta autenticada.
@@ -175,6 +177,32 @@ export function FinanceProvider({ children }) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
   }, [state, authenticatedUserId, api]);
+
+  const saveNow = useCallback(async (overrideState = null) => {
+    if (!authenticatedUserId) return null;
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const payload = overrideState || stateRef.current;
+    if (overrideState) {
+      skipNextSaveRef.current = true;
+      setState(overrideState);
+      stateRef.current = overrideState;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const { data } = await api.put("/financial-state", { state: payload });
+      setLastSavedAt(data.saved_at || new Date().toISOString());
+      return data;
+    } catch (err) {
+      setError(err.response?.data?.detail || "Não foi possível salvar as alterações.");
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }, [authenticatedUserId, api]);
 
   const update = (patch) => setState((current) => ({ ...current, ...patch }));
 
@@ -394,6 +422,7 @@ export function FinanceProvider({ children }) {
       removeGoal,
       updateFire,
       refreshFinance,
+      saveNow,
       importTransactions,
       importLegacyData,
       dismissLegacyData,
@@ -411,6 +440,7 @@ export function FinanceProvider({ children }) {
       dismissChecklist,
       syncChecklistFromFacts,
       refreshFinance,
+      saveNow,
       importTransactions,
       importLegacyData,
       dismissLegacyData,

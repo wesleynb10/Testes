@@ -96,7 +96,8 @@ export default function Onboarding() {
   const [income, setIncome] = useState("");
   const [goalId, setGoalId] = useState("reserva");
   const [skipDebt, setSkipDebt] = useState(false);
-  const [debt, setDebt] = useState({ name: "", balance: "", rate: "", minPayment: "" });
+  const [debt, setDebt] = useState({ name: "", balance: "", rate: "", minPayment: "", termMonths: "" });
+  const [debtConfirmed, setDebtConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const profile = state?.profile || {};
@@ -149,6 +150,7 @@ export default function Onboarding() {
           balance: parseNum(debt.balance),
           rate: parseNum(debt.rate),
           minPayment: parseNum(debt.minPayment),
+          termMonths: Math.max(0, Math.min(600, Math.round(parseNum(debt.termMonths)))),
         });
       }
       const addedGoalOrDebt =
@@ -311,55 +313,128 @@ export default function Onboarding() {
                 <div>
                   <div className="font-semibold text-[16px]">Tem alguma dívida agora?</div>
                   <div className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-                    Opcional — você pode cadastrar depois
+                    Opcional — cartão em atraso, empréstimo ou financiamento do carro
                   </div>
                 </div>
               </div>
 
               {!skipDebt ? (
-                <div className="space-y-3">
-                  <input
-                    data-testid="onboarding-debt-name"
-                    className="input-premium"
-                    placeholder="Ex: Cartão Nubank"
-                    value={debt.name}
-                    onChange={(e) => setDebt((d) => ({ ...d, name: e.target.value }))}
-                  />
-                  <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[11px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>
+                      Qual é a dívida?
+                    </label>
                     <input
-                      data-testid="onboarding-debt-balance"
+                      data-testid="onboarding-debt-name"
                       className="input-premium"
-                      placeholder="Saldo"
-                      inputMode="decimal"
-                      value={debt.balance}
-                      onChange={(e) => setDebt((d) => ({ ...d, balance: e.target.value }))}
-                    />
-                    <input
-                      data-testid="onboarding-debt-rate"
-                      className="input-premium"
-                      placeholder="Taxa % a.m."
-                      inputMode="decimal"
-                      value={debt.rate}
-                      onChange={(e) => setDebt((d) => ({ ...d, rate: e.target.value }))}
-                    />
-                    <input
-                      data-testid="onboarding-debt-min"
-                      className="input-premium"
-                      placeholder="Mínimo"
-                      inputMode="decimal"
-                      value={debt.minPayment}
-                      onChange={(e) => setDebt((d) => ({ ...d, minPayment: e.target.value }))}
+                      placeholder="Ex: Cartão Nubank em atraso, Financiamento do carro"
+                      value={debt.name}
+                      onChange={(e) => setDebt((d) => ({ ...d, name: e.target.value }))}
                     />
                   </div>
-                  <button
-                    type="button"
-                    className="text-[12px] underline"
-                    style={{ color: "var(--text-muted)" }}
-                    onClick={() => setSkipDebt(true)}
-                    data-testid="onboarding-skip-debt"
-                  >
-                    Pular — não tenho dívidas agora
-                  </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>
+                        Quanto ainda deve
+                      </label>
+                      <input
+                        data-testid="onboarding-debt-balance"
+                        className="input-premium"
+                        placeholder="R$ 12.000"
+                        inputMode="decimal"
+                        value={debt.balance}
+                        onChange={(e) => setDebt((d) => ({ ...d, balance: e.target.value }))}
+                      />
+                      <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
+                        Saldo que falta quitar hoje
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-[11px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>
+                        Juros ao mês
+                      </label>
+                      <input
+                        data-testid="onboarding-debt-rate"
+                        className="input-premium"
+                        placeholder="Ex: 2,5"
+                        inputMode="decimal"
+                        value={debt.rate}
+                        onChange={(e) => setDebt((d) => ({ ...d, rate: e.target.value }))}
+                      />
+                      <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
+                        % a.m. — se tem juros, trate como financiamento
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-[11px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>
+                        Parcela mensal
+                      </label>
+                      <input
+                        data-testid="onboarding-debt-min"
+                        className="input-premium"
+                        placeholder="R$ 450"
+                        inputMode="decimal"
+                        value={debt.minPayment}
+                        onChange={(e) => setDebt((d) => ({ ...d, minPayment: e.target.value }))}
+                      />
+                      <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
+                        Quanto você paga (ou pretende pagar) por mês
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-[11px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>
+                        Prazo restante
+                      </label>
+                      <input
+                        data-testid="onboarding-debt-term"
+                        className="input-premium"
+                        placeholder="Ex: 12"
+                        inputMode="numeric"
+                        value={debt.termMonths}
+                        onChange={(e) => setDebt((d) => ({ ...d, termMonths: e.target.value }))}
+                      />
+                      <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
+                        Em quantos meses quer (ou precisa) quitar — preencha sempre que souber
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <button
+                      type="button"
+                      className="btn-gold"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", fontSize: 13 }}
+                      onClick={() => {
+                        if (!debt.name.trim() || !(parseNum(debt.balance) > 0)) return;
+                        setDebtConfirmed(true);
+                        setSkipDebt(false);
+                      }}
+                      data-testid="onboarding-save-debt"
+                      disabled={!debt.name.trim() || !(parseNum(debt.balance) > 0)}
+                    >
+                      Salvar dívida
+                    </button>
+                    <button
+                      type="button"
+                      className="text-[12px] underline"
+                      style={{ color: "var(--text-muted)" }}
+                      onClick={() => {
+                        setSkipDebt(true);
+                        setDebtConfirmed(false);
+                      }}
+                      data-testid="onboarding-skip-debt"
+                    >
+                      Pular — não tenho dívidas agora
+                    </button>
+                  </div>
+                  {debtConfirmed && !skipDebt && (
+                    <div
+                      className="p-3 rounded-xl text-[13px]"
+                      style={{ background: "rgba(127,176,105,0.08)", border: "1px solid rgba(127,176,105,0.25)", color: "var(--success)" }}
+                      data-testid="onboarding-debt-saved"
+                    >
+                      Dívida salva neste onboarding. Clique em “Ir para o dashboard” para gravar na sua conta.
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div

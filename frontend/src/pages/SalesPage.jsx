@@ -58,7 +58,7 @@ const FAQ = [
   { q: "E se eu não entender de Excel?", a: "Perfeito, esse é o público. O FinPremium foi feito pra ser MAIS SIMPLES que Excel. Você preenche os campos e o sistema faz todo o cálculo automaticamente." },
   { q: "Recebo atualizações?", a: "Sim, todas as futuras atualizações da plataforma são inclusas no seu acesso vitalício sem custo adicional." },
   { q: "E se eu não gostar?", a: "Você tem 7 dias de garantia incondicional. Se não gostar por qualquer motivo, devolvemos 100% do valor sem perguntas." },
-  { q: "Meus dados ficam seguros?", a: "Sim. Todos os dados são salvos no seu próprio navegador — nós não temos acesso a nada. Você tem controle total." },
+  { q: "Meus dados ficam seguros?", a: "Sim. Seus dados ficam na sua conta (nuvem), com acesso só após login. Tráfego criptografado (HTTPS) e não vendemos suas informações. Você controla o que cadastra e pode solicitar exclusão." },
   { q: "Preciso pagar mensalidade?", a: "Não. Pagamento único, acesso vitalício. Sem taxas escondidas, sem renovação." },
 ];
 

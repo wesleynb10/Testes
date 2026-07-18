@@ -16,12 +16,51 @@ ALLOWED_RECEIPT_TYPES = {
     "image/webp",
     "application/pdf",
 }
+ALLOWED_AUDIO_TYPES = {
+    "audio/ogg",
+    "audio/opus",
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/mp4",
+    "audio/aac",
+    "audio/amr",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/webm",
+    "audio/3gpp",
+}
 MAX_RECEIPT_BYTES = 10 * 1024 * 1024
+MAX_AUDIO_BYTES = 10 * 1024 * 1024
 VALID_CATEGORIES = {"necessidades", "desejos", "investimentos"}
 
 
 class ReceiptVisionError(Exception):
     pass
+
+
+def normalize_media_type(media_type: str) -> str:
+    return (media_type or "").split(";", 1)[0].lower().strip()
+
+
+def is_receipt_media_type(media_type: str) -> bool:
+    return normalize_media_type(media_type) in ALLOWED_RECEIPT_TYPES
+
+
+def is_audio_media_type(media_type: str) -> bool:
+    return normalize_media_type(media_type) in ALLOWED_AUDIO_TYPES
+
+
+def looks_like_audio_media(media_type: str, media_url: str = "") -> bool:
+    """WhatsApp voice notes geralmente vêm como audio/ogg; codecs=opus.
+    Em edge cases a Twilio manda type vazio/octet-stream — inferimos pela URL.
+    """
+    if is_audio_media_type(media_type):
+        return True
+    normalized = normalize_media_type(media_type)
+    if normalized in {"", "application/octet-stream"}:
+        path = (urlparse(media_url or "").path or "").lower()
+        return path.endswith((".ogg", ".opus", ".mp3", ".m4a", ".amr", ".wav", ".webm", ".3gp"))
+    return False
 
 
 def _money(value: Any) -> float:
@@ -110,9 +149,17 @@ async def download_twilio_media(
     media_type: str,
     account_sid: Optional[str] = None,
     auth_token: Optional[str] = None,
+    allowed_types: Optional[set] = None,
+    max_bytes: Optional[int] = None,
 ) -> bytes:
-    content_type = (media_type or "").split(";", 1)[0].lower().strip()
-    if content_type not in ALLOWED_RECEIPT_TYPES:
+    content_type = normalize_media_type(media_type)
+    allowed = allowed_types or ALLOWED_RECEIPT_TYPES
+    size_limit = max_bytes if max_bytes is not None else MAX_RECEIPT_BYTES
+    if content_type not in allowed:
+        if allowed is ALLOWED_AUDIO_TYPES or allowed == ALLOWED_AUDIO_TYPES:
+            raise ReceiptVisionError(
+                "Envie um áudio de voz compatível (WhatsApp voice note)."
+            )
         raise ReceiptVisionError("Envie uma foto JPG, PNG, WEBP ou um PDF.")
     _validate_media_url(media_url)
 
@@ -142,11 +189,11 @@ async def download_twilio_media(
         if response is None or response.status_code != 200:
             raise ReceiptVisionError("Não consegui baixar o arquivo enviado pela Twilio.")
         declared_size = int(response.headers.get("content-length") or 0)
-        if declared_size > MAX_RECEIPT_BYTES or len(response.content) > MAX_RECEIPT_BYTES:
-            raise ReceiptVisionError("O arquivo excede o limite de 10 MB.")
-        response_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
-        if response_type and response_type not in ALLOWED_RECEIPT_TYPES:
-            raise ReceiptVisionError("O arquivo recebido não é uma foto ou PDF compatível.")
+        if declared_size > size_limit or len(response.content) > size_limit:
+            raise ReceiptVisionError(f"O arquivo excede o limite de {size_limit // (1024 * 1024)} MB.")
+        response_type = normalize_media_type(response.headers.get("content-type", ""))
+        if response_type and response_type not in allowed:
+            raise ReceiptVisionError("O arquivo recebido não é um tipo de mídia compatível.")
         return response.content
 
 

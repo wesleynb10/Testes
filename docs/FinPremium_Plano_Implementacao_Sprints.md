@@ -144,7 +144,7 @@ Sugestão prática: **Sprint 1 agora** (não depende de chave) + dono coloca Str
 
 ### Done when
 
-- [ ] Usuário muda um número e vê impacto sem sair da tela
+- [x] Usuário muda um número e vê impacto sem sair da tela
 
 ---
 
@@ -198,7 +198,8 @@ Não começar antes de ter pagamento + checklist validados com usuários reais.
 | Cookie auth | Preferir `localhost` (não misturar com `127.0.0.1`) |
 
 WhatsApp inbound: tunnel Cloudflare → `POST /api/integracao/twilio-webhook`.  
-Visão de recibos: `GEMINI_API_KEY` no `backend/.env`.
+Aceita texto, foto/PDF (OCR) e **áudio de voz** (transcrição Gemini → mesmo parser de texto).  
+Visão de recibos: `GEMINI_API_KEY` no `backend/.env` (também usado no STT de áudio; opcional `GEMINI_AUDIO_MODEL`).
 
 **Nunca commitar** `.env` com chaves.
 
