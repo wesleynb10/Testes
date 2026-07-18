@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { brl } from "@/lib/format";
+import { saveLeadEmail } from "@/lib/leadEmail";
+import { useAuth } from "@/context/AuthContext";
 import {
   ChevronRight,
   Check,
@@ -112,6 +114,8 @@ function PackageCard({ pkg, featured, onSelect, loading }) {
 
 export default function SalesPage() {
   const nav = useNavigate();
+  const { user } = useAuth();
+  const loggedIn = user && typeof user === "object";
   const [packages, setPackages] = useState({});
   const [loading, setLoading] = useState(null);
   const [checkoutError, setCheckoutError] = useState(null);
@@ -143,6 +147,7 @@ export default function SalesPage() {
   const handleBuy = async (packageId) => {
     setLoading(packageId);
     setCheckoutError(null);
+    if (email) saveLeadEmail(email);
     try {
       const { data } = await axios.post(`${API}/checkout/session`, {
         package_id: packageId,
@@ -442,7 +447,14 @@ export default function SalesPage() {
       </section>
 
       <footer className="border-t border-[var(--ink-line)] py-8 text-center text-[11px]" style={{ color: "var(--text-muted)" }}>
-        FinPremium · Wealth OS · © 2026 · <button onClick={() => nav("/app")} className="underline">Voltar ao app</button>
+        FinPremium · Wealth OS · © 2026 ·{" "}
+        <button
+          onClick={() => nav(loggedIn ? "/app" : "/app/entrar")}
+          className="underline"
+          data-testid="footer-app-link"
+        >
+          {loggedIn ? "Abrir meu painel" : "Já tenho conta? Entrar"}
+        </button>
       </footer>
     </div>
   );

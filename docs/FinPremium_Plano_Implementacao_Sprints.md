@@ -73,9 +73,10 @@ Sugestão prática: **Sprint 1 agora** (não depende de chave) + dono coloca Str
 - [x] `POST /api/checkout/session` retorna `url` começando com `https://checkout.stripe.com/`
 - [x] Pagamento teste → `/obrigado?session_id=...` → status `paid`
 - [x] Sem chave: UI continua mostrando mensagem clara (já existe)
-- [ ] Webhook local com `stripe listen` + `STRIPE_WEBHOOK_SECRET`
+- [ ] Webhook local com `stripe listen` + `STRIPE_WEBHOOK_SECRET` (opcional enquanto em teste)
 - [ ] Modo live (`sk_live_`) + KYC + payout bancário
-- [ ] (Opcional) Pix
+
+> **Pix:** fora da Sprint 0 — permanece aberto na **Sprint 5**.
 
 ---
 
@@ -88,16 +89,16 @@ Sugestão prática: **Sprint 1 agora** (não depende de chave) + dono coloca Str
 | Arquivo | Trabalho |
 |---------|----------|
 | `frontend/public/index.html` | `<title>FinPremium · Wealth OS</title>` |
-| `frontend/src/pages/Calculator.jsx` | Copy honesta **ou** download imediato; persistir email (`localStorage` / query) |
-| `frontend/src/pages/ClientAuth.jsx` | Prefill email do lead |
-| `frontend/src/pages/SalesPage.jsx` | CTA: visitante “Ver planos”; logado “Abrir meu painel” (evitar “Voltar ao app” genérico) |
-| `backend/email_service.py` + `POST /api/leads` | Só se formos **de fato** enviar o lead magnet (Resend configurado) |
+| `frontend/src/lib/leadEmail.js` | Persistência do e-mail do lead |
+| `frontend/src/pages/Calculator.jsx` | Copy honesta + salvar e-mail |
+| `frontend/src/pages/ClientAuth.jsx` | Prefill e-mail do lead |
+| `frontend/src/pages/SalesPage.jsx` | CTA visitante vs logado |
 
 ### Done when
 
-- [ ] Título da aba = FinPremium
-- [ ] Email do lead pré-preenche `/app/entrar`
-- [ ] Zero promessa de “PDF no email” sem entrega confiável
+- [x] Título da aba = FinPremium
+- [x] Email do lead pré-preenche `/app/entrar`
+- [x] Zero promessa de “PDF no email” sem entrega confiável
 
 ---
 
@@ -170,9 +171,11 @@ Sugestão prática: **Sprint 1 agora** (não depende de chave) + dono coloca Str
 
 Não começar antes de ter pagamento + checklist validados com usuários reais.
 
+- **Pix no checkout** (Stripe se a conta liberar, senão Mercado Pago) — **em aberto**  
 - Open Banking (Belvo / Klavi) — projeto separado  
 - Plano anual opcional ao lado do lifetime  
 - App nativo iOS/Android — só se PWA saturar  
+- Webhook Stripe em produção + `sk_live_`  
 
 ---
 
@@ -182,6 +185,7 @@ Não começar antes de ter pagamento + checklist validados com usuários reais.
 - Substituir lifetime por SaaS puro  
 - Open Banking como P0  
 - Broker / corretora no MVP  
+- Pix na Sprint 0/1 (adiado → Sprint 5)  
 
 ---
 
@@ -204,10 +208,10 @@ Visão de recibos: `GEMINI_API_KEY` no `backend/.env`.
 
 | Decisão | Owner | Status |
 |---------|-------|--------|
-| Stripe key + webhook | Produto / DevOps | Pendente |
-| Pix: Stripe vs Mercado Pago | Produto | Pendente |
-| Lead magnet: email real vs download | Produto | Pendente |
-| Próximo sprint a puxar (0 / 1 / 2) | Time | A combinar |
+| Stripe key + webhook | Produto / DevOps | Teste OK; live/webhook depois |
+| Pix: Stripe vs Mercado Pago | Produto | **Aberto na Sprint 5** |
+| Lead magnet: email real vs download | Produto | Resolvido: copy honesta (sem PDF) |
+| Próximo sprint a puxar | Time | Sprint 1 feita → Sprint 2 |
 
 ---
 

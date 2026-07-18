@@ -15,7 +15,7 @@
 | Captura de e-mail da página Stripe | OK |
 | Webhook `/api/webhook/stripe` | Código pronto — precisa `STRIPE_WEBHOOK_SECRET` |
 | Modo live (`sk_live_`) + payout bancário | Pendente (KYC Stripe) |
-| Pix | Follow-up (não bloqueia cartão) |
+| Pix | **Aberto na Sprint 5** (Stripe ou Mercado Pago) |
 
 ---
 

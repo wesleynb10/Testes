@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { brl } from "@/lib/format";
+import { saveLeadEmail } from "@/lib/leadEmail";
+import { useAuth } from "@/context/AuthContext";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -17,6 +19,8 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function Calculator() {
   const nav = useNavigate();
+  const { user } = useAuth();
+  const loggedIn = user && typeof user === "object";
   const [initial, setInitial] = useState(1000);
   const [monthly, setMonthly] = useState(500);
   const [years, setYears] = useState(20);
@@ -55,6 +59,7 @@ export default function Calculator() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (email && email.includes("@")) {
+      saveLeadEmail(email);
       // Persist locally (works offline / no-backend)
       const leads = JSON.parse(localStorage.getItem("finpremium_leads") || "[]");
       leads.push({ email, date: new Date().toISOString(), source: "calculadora" });
@@ -114,8 +119,12 @@ export default function Calculator() {
               <div className="text-[9px] uppercase tracking-[0.24em]" style={{ color: "var(--gold)" }}>Wealth OS</div>
             </div>
           </div>
-          <button onClick={() => nav("/")} className="btn-ghost" data-testid="back-to-app">
-            Voltar ao app
+          <button
+            onClick={() => nav(loggedIn ? "/app" : "/")}
+            className="btn-ghost"
+            data-testid="back-to-app"
+          >
+            {loggedIn ? "Abrir meu painel" : "Ver planos"}
           </button>
         </div>
       </header>
@@ -267,10 +276,10 @@ export default function Calculator() {
                 <div className="eyebrow">Bônus grátis</div>
               </div>
               <h3 className="font-display text-[28px] mb-3 text-shimmer" style={{ letterSpacing: "-0.03em" }}>
-                Receba o simulador em PDF + planilha de bônus
+                Salve seu resultado e receba dicas de investimento
               </h3>
               <p className="text-[14px]" style={{ color: "var(--text-secondary)" }}>
-                Enviamos direto no seu email: relatório personalizado + planilha de juros compostos + 7 dicas de investimento.
+                Deixe seu melhor e-mail. Entramos em contato com conteúdos úteis — sem prometer PDF na caixa de entrada.
               </p>
             </div>
             {!subscribed ? (
@@ -291,10 +300,10 @@ export default function Calculator() {
                   className="btn-gold w-full"
                   style={{ padding: "14px 20px", fontSize: 15, display: "flex", justifyContent: "center", alignItems: "center", gap: 8 }}
                 >
-                  <Mail className="w-4 h-4" /> Quero receber grátis
+                  <Mail className="w-4 h-4" /> Quero receber dicas
                 </button>
                 <div className="text-[11px] text-center" style={{ color: "var(--text-muted)" }}>
-                  🔒 Sem spam. Cancele quando quiser.
+                  Sem spam. Você pode pedir para sair a qualquer momento.
                 </div>
               </form>
             ) : (
@@ -305,9 +314,9 @@ export default function Calculator() {
                 >
                   <Sparkles className="w-6 h-6" style={{ color: "var(--ink-void)" }} />
                 </div>
-                <div className="font-display text-[22px] mb-1">Enviado!</div>
+                <div className="font-display text-[22px] mb-1">E-mail salvo!</div>
                 <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                  Confira sua caixa de entrada em 2 minutos.
+                  Seu contato foi registrado. Continue explorando o FinPremium quando quiser.
                 </p>
               </div>
             )}
@@ -323,8 +332,12 @@ export default function Calculator() {
           <p className="text-[14px] mb-6 max-w-lg mx-auto" style={{ color: "var(--text-secondary)" }}>
             Dashboard executivo, orçamento inteligente, simulador de dívidas e Número da Liberdade. Tudo em Dark Mode Premium.
           </p>
-          <button onClick={() => nav("/")} className="btn-gold" data-testid="explore-app-btn">
-            Explorar o FinPremium <ChevronRight className="w-4 h-4 inline ml-1" />
+          <button
+            onClick={() => nav(loggedIn ? "/app" : "/app/entrar")}
+            className="btn-gold"
+            data-testid="explore-app-btn"
+          >
+            {loggedIn ? "Abrir meu painel" : "Criar conta grátis"} <ChevronRight className="w-4 h-4 inline ml-1" />
           </button>
         </div>
       </main>
