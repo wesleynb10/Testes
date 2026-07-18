@@ -30,7 +30,7 @@ Este documento é o contrato de prioridade entre produto e eng. **Não misturar 
 | Orçamento, dívidas snowball/avalanche, metas FIRE | OK |
 | Persistência `financial_states` (Mongo) | OK |
 | Erro de checkout **visível** na landing (503 se Stripe off) | OK |
-| Checkout Stripe **real** | **BLOQUEADO** — stub em `emergentintegrations` + `STRIPE_API_KEY` vazio |
+| Checkout Stripe **real** | OK em **modo teste** (`sk_test_`) — ver `docs/FinPremium_Stripe_Setup.md` |
 
 ---
 
@@ -70,9 +70,12 @@ Sugestão prática: **Sprint 1 agora** (não depende de chave) + dono coloca Str
 
 ### Done when
 
-- [ ] `POST /api/checkout/session` retorna `url` começando com `https://checkout.stripe.com/`
-- [ ] Pagamento teste → `/obrigado?session_id=...` → status `paid`
-- [ ] Sem chave: UI continua mostrando mensagem clara (já existe)
+- [x] `POST /api/checkout/session` retorna `url` começando com `https://checkout.stripe.com/`
+- [x] Pagamento teste → `/obrigado?session_id=...` → status `paid`
+- [x] Sem chave: UI continua mostrando mensagem clara (já existe)
+- [ ] Webhook local com `stripe listen` + `STRIPE_WEBHOOK_SECRET`
+- [ ] Modo live (`sk_live_`) + KYC + payout bancário
+- [ ] (Opcional) Pix
 
 ---
 

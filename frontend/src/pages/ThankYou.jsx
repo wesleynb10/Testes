@@ -66,7 +66,8 @@ export default function ThankYou() {
     }
 
     if (status === "paid") {
-      const total = details ? details.amount_total / 100 : 0;
+      // Backend já devolve amount_total em reais (não centavos).
+      const total = details?.amount_total ?? 0;
       return (
         <div className="text-center fade-up" data-testid="status-paid">
           <div
@@ -111,7 +112,7 @@ export default function ThankYou() {
             </div>
           </div>
 
-          <button onClick={() => nav("/")} className="btn-gold" data-testid="go-to-app" style={{ fontSize: 15, padding: "14px 28px" }}>
+          <button onClick={() => nav("/app")} className="btn-gold" data-testid="go-to-app" style={{ fontSize: 15, padding: "14px 28px" }}>
             Entrar no FinPremium <ChevronRight className="w-4 h-4 inline ml-1" />
           </button>
 

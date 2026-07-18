@@ -1,7 +1,7 @@
 """
 Resend email service — templates and async senders for FinPremium.
-Test mode: emails only reach addresses verified in the Resend dashboard.
-Owner notifications always work (OWNER_EMAIL is the account holder).
+Test mode: with onboarding@resend.dev, Resend only delivers to the account owner's email.
+Owner notifications always target OWNER_EMAIL.
 """
 import os
 import asyncio
@@ -10,9 +10,19 @@ import resend
 
 logger = logging.getLogger(__name__)
 
-resend.api_key = os.environ.get("RESEND_API_KEY", "")
 SENDER = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
 OWNER = os.environ.get("OWNER_EMAIL", "")
+FRONTEND_URL = (
+    os.environ.get("FRONTEND_URL")
+    or os.environ.get("APP_URL")
+    or "http://localhost:3000"
+).rstrip("/")
+
+
+def _resend_ready() -> bool:
+    key = (os.environ.get("RESEND_API_KEY") or "").strip()
+    resend.api_key = key
+    return bool(key)
 
 
 BASE_STYLE = """
@@ -57,13 +67,14 @@ def _wrap(body_html: str) -> str:
 
 
 def customer_welcome_html(package_name: str, amount: float, session_id: str) -> str:
+    app_link = f"{FRONTEND_URL}/app/entrar"
     body = f"""
       <h1>Bem-vindo(a) ao <span class="gold">FinPremium</span>!</h1>
       <p>Seu pagamento de <strong>R$ {amount:.2f}</strong> foi confirmado. Você agora tem acesso vitalício ao <strong>{package_name}</strong>.</p>
 
       <h2>Como acessar</h2>
       <p>Basta clicar no botão abaixo. Recomendamos favoritar a URL no navegador.</p>
-      <p style="text-align:center;"><a class="btn" href="https://wealth-control-25.preview.emergentagent.com/">Entrar no FinPremium →</a></p>
+      <p style="text-align:center;"><a class="btn" href="{app_link}">Entrar no FinPremium →</a></p>
 
       <div class="divider"></div>
 
@@ -94,7 +105,7 @@ def customer_welcome_html(package_name: str, amount: float, session_id: str) -> 
 
 def owner_sale_html(package_name: str, amount: float, customer_email: str, session_id: str) -> str:
     body = f"""
-      <h1>💰 Nova venda confirmada!</h1>
+      <h1>Nova venda confirmada!</h1>
       <div class="kpi">
         <div style="font-size:11px; color:#6E6A5F; letter-spacing:0.14em; text-transform:uppercase;">Valor</div>
         <div style="font-size:32px; color:#E8CE87; font-family:Georgia, serif;">R$ {amount:.2f}</div>
@@ -116,7 +127,7 @@ def owner_lead_html(email: str, source: str, metadata: dict | None) -> str:
             rows.append(f'<li><strong>{k}:</strong> {v}</li>')
         meta_str = f"<ul>{''.join(rows)}</ul>"
     body = f"""
-      <h1>🎯 Novo lead capturado</h1>
+      <h1>Novo lead capturado</h1>
       <div class="kpi">
         <div style="font-size:11px; color:#6E6A5F; letter-spacing:0.14em; text-transform:uppercase;">Email</div>
         <div style="font-size:22px; color:#E8CE87;">{email}</div>
@@ -131,21 +142,21 @@ def owner_lead_html(email: str, source: str, metadata: dict | None) -> str:
 
 async def send_email(to_email: str, subject: str, html: str, tag: str = "generic"):
     """Fire-and-forget email send. Never raises — logs errors."""
-    if not resend.api_key:
+    if not _resend_ready():
         logger.warning(f"[email:{tag}] RESEND_API_KEY not set, skipping")
         return None
     if not to_email:
         logger.warning(f"[email:{tag}] no recipient, skipping")
         return None
+    sender = (os.environ.get("SENDER_EMAIL") or SENDER or "onboarding@resend.dev").strip()
     params = {
-        "from": SENDER,
+        "from": sender,
         "to": [to_email],
         "subject": subject,
         "html": html,
     }
     try:
         result = await asyncio.to_thread(resend.Emails.send, params)
-        # resend SDK may return either a dict or a namespaced object
         email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
         logger.info(f"[email:{tag}] sent to {to_email} id={email_id}")
         return email_id
@@ -155,11 +166,12 @@ async def send_email(to_email: str, subject: str, html: str, tag: str = "generic
 
 
 async def notify_new_lead(email: str, source: str, metadata: dict | None = None):
-    if not OWNER:
+    owner = (os.environ.get("OWNER_EMAIL") or OWNER or "").strip()
+    if not owner:
         return
     await send_email(
-        to_email=OWNER,
-        subject=f"🎯 Novo lead FinPremium — {email}",
+        to_email=owner,
+        subject=f"Novo lead FinPremium — {email}",
         html=owner_lead_html(email, source, metadata),
         tag="lead-notify",
     )
@@ -167,21 +179,24 @@ async def notify_new_lead(email: str, source: str, metadata: dict | None = None)
 
 async def send_customer_welcome(customer_email: str, package_name: str, amount: float, session_id: str):
     if not customer_email:
+        logger.warning("[email:customer-welcome] no customer email, skipping")
         return
     await send_email(
         to_email=customer_email,
-        subject="🎉 Bem-vindo(a) ao FinPremium — Acesso liberado",
+        subject="Bem-vindo(a) ao FinPremium — Acesso liberado",
         html=customer_welcome_html(package_name, amount, session_id),
         tag="customer-welcome",
     )
 
 
 async def notify_owner_sale(package_name: str, amount: float, customer_email: str, session_id: str):
-    if not OWNER:
+    owner = (os.environ.get("OWNER_EMAIL") or OWNER or "").strip()
+    if not owner:
+        logger.warning("[email:owner-sale] OWNER_EMAIL not set, skipping")
         return
     await send_email(
-        to_email=OWNER,
-        subject=f"💰 Venda R$ {amount:.2f} — {package_name}",
+        to_email=owner,
+        subject=f"Venda R$ {amount:.2f} — {package_name}",
         html=owner_sale_html(package_name, amount, customer_email, session_id),
         tag="owner-sale",
     )

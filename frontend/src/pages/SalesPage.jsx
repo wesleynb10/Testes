@@ -149,11 +149,21 @@ export default function SalesPage() {
         origin_url: window.location.origin,
         email: email || null,
       });
+      if (!data?.url) {
+        setCheckoutError("Não recebemos o link de pagamento. Tente novamente em alguns segundos.");
+        setLoading(null);
+        return;
+      }
       window.location.href = data.url;
     } catch (e) {
-      setCheckoutError("Não conseguimos iniciar o checkout agora. Tente novamente em alguns segundos.");
+      const detail = e?.response?.data?.detail;
+      const message =
+        (typeof detail === "string" && detail) ||
+        "Não conseguimos iniciar o checkout agora. Pagamentos podem estar temporariamente indisponíveis — tente novamente em alguns minutos.";
+      setCheckoutError(message);
       console.error(e);
       setLoading(null);
+      document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   };
 
@@ -360,6 +370,17 @@ export default function SalesPage() {
           />
         </div>
 
+        {checkoutError && (
+          <div
+            className="max-w-2xl mx-auto mb-8 p-4 rounded-xl text-[14px] leading-relaxed"
+            style={{ background: "rgba(212,106,106,0.08)", border: "1px solid rgba(212,106,106,0.35)", color: "var(--danger)" }}
+            data-testid="checkout-error"
+            role="alert"
+          >
+            {checkoutError}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
           {Object.entries(packages).map(([id, pkg]) => (
             <PackageCard key={id} pkg={pkg} featured={id === "complete"} onSelect={handleBuy} loading={loading === id} />
@@ -421,7 +442,7 @@ export default function SalesPage() {
       </section>
 
       <footer className="border-t border-[var(--ink-line)] py-8 text-center text-[11px]" style={{ color: "var(--text-muted)" }}>
-        FinPremium · Wealth OS · © 2026 · <button onClick={() => nav("/")} className="underline">Voltar ao app</button>
+        FinPremium · Wealth OS · © 2026 · <button onClick={() => nav("/app")} className="underline">Voltar ao app</button>
       </footer>
     </div>
   );
