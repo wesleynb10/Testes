@@ -24,7 +24,22 @@ export const pct = (n, digits = 1) => {
 export const parseNum = (v) => {
   if (typeof v === "number") return v;
   if (!v) return 0;
-  const clean = String(v).replace(/[^\d,-]/g, "").replace(",", ".");
+  let clean = String(v).trim().replace(/[^\d,.-]/g, "");
+  const comma = clean.lastIndexOf(",");
+  const dot = clean.lastIndexOf(".");
+
+  if (comma >= 0 && dot >= 0) {
+    // The last separator is the decimal separator; the other is thousands.
+    clean =
+      comma > dot
+        ? clean.replace(/\./g, "").replace(",", ".")
+        : clean.replace(/,/g, "");
+  } else if (comma >= 0) {
+    clean = clean.replace(/\./g, "").replace(",", ".");
+  } else if ((clean.match(/\./g) || []).length > 1) {
+    const last = clean.lastIndexOf(".");
+    clean = `${clean.slice(0, last).replace(/\./g, "")}${clean.slice(last)}`;
+  }
   const n = parseFloat(clean);
   return isNaN(n) ? 0 : n;
 };

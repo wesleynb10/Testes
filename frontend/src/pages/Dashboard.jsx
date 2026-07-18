@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useFinance } from "@/context/FinanceContext";
+import { useAuth } from "@/context/AuthContext";
 import { brl, pct } from "@/lib/format";
 import ShareStory from "@/components/ShareStory";
+import FirstWeekChecklist from "@/components/FirstWeekChecklist";
 import {
   ResponsiveContainer,
   PieChart,
@@ -87,9 +90,23 @@ function KPI({ label, value, delta, tone = "default", icon: Icon, testId }) {
 }
 
 export default function Dashboard() {
-  const { state } = useFinance();
-  const { budget, goals, profile, fire } = state;
+  const nav = useNavigate();
+  const { state, summary, syncChecklistFromFacts } = useFinance();
+  const { user } = useAuth();
+  const { budget, goals, debts, profile, fire } = state;
   const [showShare, setShowShare] = useState(false);
+
+  useEffect(() => {
+    const hasPhone = !!(user && typeof user === "object" && String(user.phone || "").trim());
+    syncChecklistFromFacts({
+      goalDebt: (goals || []).length > 0 || (debts || []).length > 0,
+      whatsapp: hasPhone,
+    });
+  }, [user, goals, debts, syncChecklistFromFacts]);
+
+  const greetName =
+    (user && typeof user === "object" && (user.name || (user.email || "").split("@")[0])) ||
+    profile.name;
 
   const totalReceita = profile.monthlyIncome;
   const gastosNec = budget.necessidades.reduce((s, it) => s + it.actual, 0);
@@ -98,6 +115,10 @@ export default function Dashboard() {
   const totalGastos = gastosNec + gastosDes;
   const saldo = totalReceita - totalGastos - investimentos;
   const taxaPoupanca = totalReceita > 0 ? (investimentos / totalReceita) * 100 : 0;
+  const monthLabel = new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
 
   // Expense breakdown pie data
   const allExpenses = [
@@ -107,40 +128,52 @@ export default function Dashboard() {
     .filter((it) => it.value > 0)
     .sort((a, b) => b.value - a.value);
 
-  // 6-month synthetic history (fake data to illustrate)
-  const history = [
-    { mes: "Ago", receita: 6300, gastos: 4700, investido: 1500 },
-    { mes: "Set", receita: 6300, gastos: 4900, investido: 1400 },
-    { mes: "Out", receita: 6500, gastos: 4600, investido: 1700 },
-    { mes: "Nov", receita: 6500, gastos: 5100, investido: 1400 },
-    { mes: "Dez", receita: 7200, gastos: 5400, investido: 1800 },
-    { mes: "Jan", receita: totalReceita, gastos: totalGastos, investido: investimentos },
-  ];
+  const history = (summary?.months || []).map((item) => ({
+    mes: new Intl.DateTimeFormat("pt-BR", { month: "short" })
+      .format(new Date(`${item.month}-01T12:00:00`))
+      .replace(".", ""),
+    receita: totalReceita,
+    gastos: item.expenses || 0,
+    investido: item.investments || 0,
+  }));
+  const previousMonth = history.length > 1 ? history[history.length - 2] : null;
+  const percentChange = (current, previous) => {
+    if (!previous) return undefined;
+    if (previous === 0) return current === 0 ? 0 : 100;
+    return ((current - previous) / previous) * 100;
+  };
 
   // FIRE calculation
-  const numeroLiberdade = (fire.monthlyExpenses * 12) / (fire.safeWithdrawal / 100);
-  const progresso = Math.min(100, (fire.currentInvested / numeroLiberdade) * 100);
+  const numeroLiberdade =
+    fire.safeWithdrawal > 0 ? (fire.monthlyExpenses * 12) / (fire.safeWithdrawal / 100) : 0;
+  const progresso =
+    numeroLiberdade > 0 ? Math.min(100, (fire.currentInvested / numeroLiberdade) * 100) : 0;
 
-  // Alerts
+  // Alerts — só compara com orçamento quando há valor planejado (> 0)
   const overspent = [...budget.necessidades, ...budget.desejos]
-    .filter((it) => it.actual > it.planned * 1.05)
+    .filter((it) => it.planned > 0 && it.actual > it.planned * 1.05)
     .slice(0, 3);
+
+  const needsIncomeSetup = !(totalReceita > 0);
 
   return (
     <div className="p-8 space-y-8" data-testid="dashboard-page">
       {/* Header */}
       <header className="flex items-end justify-between gap-6 flex-wrap">
         <div>
-          <div className="eyebrow mb-3">Painel Executivo · Janeiro 2026</div>
+          <div className="eyebrow mb-3">Painel Executivo · {monthLabel}</div>
           <h1 className="h-display">
-            Olá, {profile.name}. <span className="text-shimmer">Seu patrimônio agradece.</span>
+            Olá, {greetName}. <span className="text-shimmer">Seu patrimônio agradece.</span>
           </h1>
           <p className="mt-3 text-[15px] max-w-xl" style={{ color: "var(--text-secondary)" }}>
             Visão consolidada do seu mês. Cada real com nome, categoria e destino.
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="chip gold"><Sparkles className="w-3 h-3" /> Regra 50/30/20 ativa</div>
+          <div className="chip gold">
+            <Sparkles className="w-3 h-3" />
+            {needsIncomeSetup ? "Configure sua renda" : "Regra 50/30/20 ativa"}
+          </div>
           <button
             data-testid="open-share-story"
             onClick={() => setShowShare(true)}
@@ -152,11 +185,13 @@ export default function Dashboard() {
         </div>
       </header>
 
+      <FirstWeekChecklist />
+
       {/* KPI Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-        <KPI label="Receita do mês" value={brl(totalReceita)} delta={3.1} icon={TrendingUp} testId="kpi-receita" />
-        <KPI label="Gastos totais" value={brl(totalGastos)} delta={-2.4} tone="default" icon={TrendingDown} testId="kpi-gastos" />
-        <KPI label="Investido no mês" value={brl(investimentos)} tone="gold" delta={5.8} icon={Wallet} testId="kpi-investido" />
+        <KPI label="Receita do mês" value={brl(totalReceita)} icon={TrendingUp} testId="kpi-receita" />
+        <KPI label="Gastos totais" value={brl(totalGastos)} delta={percentChange(totalGastos, previousMonth?.gastos)} tone="default" icon={TrendingDown} testId="kpi-gastos" />
+        <KPI label="Investido no mês" value={brl(investimentos)} tone="gold" delta={percentChange(investimentos, previousMonth?.investido)} icon={Wallet} testId="kpi-investido" />
         <KPI label="Sobra / Saldo" value={brl(saldo)} tone={saldo >= 0 ? "success" : "danger"} icon={Target} testId="kpi-saldo" />
       </div>
 
@@ -277,7 +312,7 @@ export default function Dashboard() {
                     <div className="thermometer-fill" style={{ width: `${p}%` }} />
                   </div>
                   <div className="mt-1.5 flex justify-between text-[11px]" style={{ color: "var(--text-muted)" }}>
-                    <span>Prazo: {new Date(g.deadline).toLocaleDateString("pt-BR")}</span>
+                    <span>{g.deadline ? `Prazo: ${new Date(g.deadline).toLocaleDateString("pt-BR")}` : "Sem prazo definido"}</span>
                     <span className="font-mono-num font-semibold" style={{ color: "var(--gold)" }}>{pct(p)}</span>
                   </div>
                 </div>
@@ -347,7 +382,25 @@ export default function Dashboard() {
 
         <div className="card-premium p-6" data-testid="alertas">
           <div className="kpi-label mb-4">Alertas Inteligentes</div>
-          {overspent.length === 0 ? (
+          {needsIncomeSetup ? (
+            <div className="p-5 rounded-xl" style={{ background: "rgba(201,169,97,0.08)", border: "1px solid rgba(201,169,97,0.25)" }}>
+              <div className="text-[14px] font-semibold mb-1" style={{ color: "var(--gold-bright)" }}>
+                Defina sua renda para ativar os alertas
+              </div>
+              <p className="text-[13px] leading-relaxed mb-4" style={{ color: "var(--text-secondary)" }}>
+                Sem renda e orçamento planejado, não dá para saber se um gasto estourou. Configure no Orçamento 50/30/20.
+              </p>
+              <button
+                type="button"
+                className="btn-gold"
+                style={{ fontSize: 13, padding: "10px 16px" }}
+                onClick={() => nav("/app/orcamento")}
+                data-testid="cta-definir-renda"
+              >
+                Definir renda mensal
+              </button>
+            </div>
+          ) : overspent.length === 0 ? (
             <div className="p-6 text-center">
               <div className="text-[13px]" style={{ color: "var(--success)" }}>Nenhum gasto acima do planejado. Impecável.</div>
             </div>
@@ -355,7 +408,7 @@ export default function Dashboard() {
             <div className="space-y-3">
               {overspent.map((it) => {
                 const excesso = it.actual - it.planned;
-                const p = ((excesso / it.planned) * 100).toFixed(0);
+                const p = it.planned > 0 ? ((excesso / it.planned) * 100).toFixed(0) : "0";
                 return (
                   <div
                     key={it.id}
@@ -377,7 +430,13 @@ export default function Dashboard() {
           <div className="mt-5 pt-5 border-t border-[var(--ink-line)]">
             <div className="kpi-label mb-3">Sugestão do Sistema</div>
             <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              Redirecionar {brl(Math.min(saldo > 0 ? saldo : 200, 500))} do saldo desta semana para <span style={{ color: "var(--gold-bright)" }} className="font-semibold">Reserva de Emergência</span> aceleraria sua meta em ~{(Math.random() * 2 + 1).toFixed(1)} meses.
+              {needsIncomeSetup
+                ? "Primeiro passo: informe sua renda líquida. Depois o sistema monta a regra 50/30/20 e as sugestões passam a fazer sentido."
+                : saldo > 0
+                  ? <>Redirecionar {brl(Math.min(saldo, 500))} do saldo deste mês para <span style={{ color: "var(--gold-bright)" }} className="font-semibold">Reserva de Emergência</span> ajuda a acelerar sua primeira meta financeira.</>
+                  : totalGastos > 0
+                    ? "Seu mês está no vermelho agora. Revise desejos no Orçamento e priorize o essencial antes de aumentar aportes."
+                    : "Comece registrando gastos no app ou pelo WhatsApp. Com dados reais, as sugestões ficam precisas."}
             </p>
           </div>
         </div>

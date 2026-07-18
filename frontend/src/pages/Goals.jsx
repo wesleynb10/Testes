@@ -4,7 +4,7 @@ import { brl, pct, parseNum } from "@/lib/format";
 import { Plus, Trash2, Target as TargetIcon, Sparkles } from "lucide-react";
 
 function computeFIRE({ monthlyExpenses, safeWithdrawal, currentInvested, monthlyInvestment, annualReturn }) {
-  const target = (monthlyExpenses * 12) / (safeWithdrawal / 100);
+  const target = safeWithdrawal > 0 ? (monthlyExpenses * 12) / (safeWithdrawal / 100) : 0;
   const gap = Math.max(0, target - currentInvested);
   const r = annualReturn / 100 / 12;
   let months = 0;
@@ -23,7 +23,7 @@ function computeFIRE({ monthlyExpenses, safeWithdrawal, currentInvested, monthly
     target,
     monthsToFire: isFinite(months) ? Math.ceil(months) : Infinity,
     yearsToFire: isFinite(months) ? months / 12 : Infinity,
-    progress: Math.min(100, (currentInvested / target) * 100),
+    progress: target > 0 ? Math.min(100, (currentInvested / target) * 100) : 0,
   };
 }
 
@@ -144,9 +144,12 @@ export default function Goals() {
 
         <div className="space-y-4">
           {goals.map((g) => {
-            const p = Math.min(100, (g.current / g.target) * 100);
+            const p = g.target > 0 ? Math.min(100, (g.current / g.target) * 100) : 0;
             const remaining = Math.max(0, g.target - g.current);
-            const monthsLeft = Math.max(1, Math.ceil((new Date(g.deadline) - new Date()) / (1000 * 60 * 60 * 24 * 30)));
+            const parsedDeadline = g.deadline ? new Date(`${g.deadline}T12:00:00`) : null;
+            const monthsLeft = parsedDeadline && !Number.isNaN(parsedDeadline.getTime())
+              ? Math.max(1, Math.ceil((parsedDeadline - new Date()) / (1000 * 60 * 60 * 24 * 30)))
+              : 1;
             const monthlyNeeded = remaining / monthsLeft;
             return (
               <div key={g.id} className="p-5 rounded-xl" style={{ background: "rgba(11,10,15,0.4)", border: "1px solid var(--ink-line)" }}>

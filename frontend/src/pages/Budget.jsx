@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useFinance } from "@/context/FinanceContext";
 import { brl, pct, parseNum } from "@/lib/format";
 import { Plus, Trash2, PieChart as PieIcon, Upload } from "lucide-react";
@@ -108,7 +108,9 @@ function CategoryBlock({ cat, income }) {
                     type="number"
                     className="input-premium font-mono-num"
                     value={it.actual}
-                    onChange={(e) => updateBudgetItem(cat.key, it.id, { actual: parseNum(e.target.value) })}
+                    readOnly
+                    title="Calculado automaticamente pelos lançamentos do mês"
+                    style={{ opacity: 0.75, cursor: "not-allowed" }}
                   />
                 </td>
                 <td className="font-mono-num text-[13px]" style={{ color: diff > 0 ? "var(--danger)" : "var(--success)" }}>
@@ -175,14 +177,18 @@ function CategoryBlock({ cat, income }) {
 }
 
 export default function Budget() {
-  const { state, updateProfile } = useFinance();
-  const [income, setIncome] = useState(state.profile.monthlyIncome);
+  const { state, updateProfile, completeChecklistItem } = useFinance();
   const [showImport, setShowImport] = useState(false);
+  const income = state.profile.monthlyIncome;
+
+  useEffect(() => {
+    completeChecklistItem("budget");
+  }, [completeChecklistItem]);
 
   const handleIncomeChange = (v) => {
     const n = parseNum(v);
-    setIncome(n);
     updateProfile({ monthlyIncome: n });
+    if (n > 0) completeChecklistItem("income");
   };
 
   return (
@@ -193,6 +199,9 @@ export default function Budget() {
           <h1 className="h-display">Cada real, um propósito.</h1>
           <p className="mt-3 text-[15px] max-w-2xl" style={{ color: "var(--text-secondary)" }}>
             Distribua sua renda em três pilares: <span style={{ color: "var(--gold-bright)" }}>Necessidades, Desejos e Investimentos</span>. Ajuste o planejado, registre o real, veja o desvio.
+          </p>
+          <p className="mt-1 text-[12px]" style={{ color: "var(--text-muted)" }}>
+            A coluna Real é calculada automaticamente pelos lançamentos do app, WhatsApp e CSV.
           </p>
         </div>
         <button

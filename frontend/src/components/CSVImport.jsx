@@ -12,10 +12,12 @@ const CAT_LABELS = {
 
 export default function CSVImport({ onClose }) {
   const inputRef = useRef();
-  const { state, updateBudgetItem, addBudgetItem } = useFinance();
+  const { importTransactions } = useFinance();
   const [step, setStep] = useState("upload"); // upload | review | done
   const [transactions, setTransactions] = useState([]);
   const [imported, setImported] = useState(0);
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -39,30 +41,27 @@ export default function CSVImport({ onClose }) {
   const setCategory = (id, category) =>
     setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, category } : t)));
 
-  const applyImport = () => {
-    // Aggregate selected transactions by (category, subcategory)
-    const grouped = {};
-    transactions
-      .filter((t) => t.selected && t.value !== 0)
-      .forEach((t) => {
-        const key = `${t.category}::${t.subcategory}`;
-        grouped[key] = (grouped[key] || 0) + Math.abs(t.value);
-      });
-
-    let count = 0;
-    Object.entries(grouped).forEach(([key, sum]) => {
-      const [cat, subcat] = key.split("::");
-      const existing = state.budget[cat]?.find((it) => it.name.toLowerCase() === subcat.toLowerCase());
-      if (existing) {
-        updateBudgetItem(cat, existing.id, { actual: existing.actual + sum });
-      } else {
-        addBudgetItem(cat, { name: subcat, planned: sum, actual: sum });
-      }
-      count++;
-    });
-
-    setImported(transactions.filter((t) => t.selected).length);
-    setStep("done");
+  const applyImport = async () => {
+    const selected = transactions.filter((t) => t.selected && t.value !== 0);
+    setImporting(true);
+    setError(null);
+    try {
+      const result = await importTransactions(
+        selected.map((t) => ({
+          amount: Math.abs(t.value),
+          category: t.category,
+          subcategory: t.subcategory,
+          description: t.description,
+          occurred_at: t.date || null,
+        }))
+      );
+      setImported(result.created || selected.length);
+      setStep("done");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Não foi possível importar o extrato.");
+    } finally {
+      setImporting(false);
+    }
   };
 
   const totalSelected = transactions.filter((t) => t.selected).length;
@@ -240,19 +239,21 @@ export default function CSVImport({ onClose }) {
         {/* Footer */}
         {step === "review" && (
           <div className="flex items-center justify-between p-5 border-t border-[var(--ink-line)]">
-            <div className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-              <span className="font-mono-num font-semibold" style={{ color: "var(--gold-bright)" }}>{totalSelected}</span> de {transactions.length} selecionadas
+            <div className="text-[13px]" style={{ color: error ? "var(--danger)" : "var(--text-secondary)" }}>
+              {error || (
+                <><span className="font-mono-num font-semibold" style={{ color: "var(--gold-bright)" }}>{totalSelected}</span> de {transactions.length} selecionadas</>
+              )}
             </div>
             <div className="flex gap-3">
               <button onClick={onClose} className="btn-ghost" data-testid="csv-cancel">Cancelar</button>
               <button
                 onClick={applyImport}
                 className="btn-gold"
-                disabled={totalSelected === 0}
+                disabled={totalSelected === 0 || importing}
                 data-testid="csv-apply"
-                style={{ opacity: totalSelected === 0 ? 0.4 : 1 }}
+                style={{ opacity: totalSelected === 0 || importing ? 0.4 : 1 }}
               >
-                Importar {totalSelected} transações
+                {importing ? "Importando..." : `Importar ${totalSelected} transações`}
               </button>
             </div>
           </div>

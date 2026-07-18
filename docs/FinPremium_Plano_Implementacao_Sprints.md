@@ -126,8 +126,8 @@ Sugestão prática: **Sprint 1 agora** (não depende de chave) + dono coloca Str
 
 ### Done when
 
-- [ ] Progresso persiste no Atlas
-- [ ] Checklist some ao completar 100%
+- [x] Progresso persiste no Atlas
+- [x] Checklist some ao completar 100%
 
 ---
 

@@ -111,7 +111,7 @@ export default function AdminLogin() {
         </div>
 
         <div className="text-center mt-2">
-          <button onClick={() => nav("/")} className="text-[12px] underline" style={{ color: "var(--text-secondary)" }} data-testid="back-to-app">
+          <button onClick={() => nav("/app")} className="text-[12px] underline" style={{ color: "var(--text-secondary)" }} data-testid="back-to-app">
             ← Voltar para o app
           </button>
         </div>

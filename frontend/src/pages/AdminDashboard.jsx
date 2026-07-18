@@ -137,7 +137,7 @@ export default function AdminDashboard() {
             <button data-testid="refresh-btn" onClick={loadAll} disabled={refreshing} className="btn-ghost" style={{ display: "flex", gap: 6, alignItems: "center", padding: "8px 16px", fontSize: 12 }}>
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} /> Atualizar
             </button>
-            <button data-testid="goto-app-btn" onClick={() => nav("/")} className="btn-ghost" style={{ display: "flex", gap: 6, alignItems: "center", padding: "8px 16px", fontSize: 12 }}>
+            <button data-testid="goto-app-btn" onClick={() => nav("/app")} className="btn-ghost" style={{ display: "flex", gap: 6, alignItems: "center", padding: "8px 16px", fontSize: 12 }}>
               <ExternalLink className="w-3.5 h-3.5" /> Ir para app
             </button>
             <button data-testid="logout-btn" onClick={async () => { await logout(); nav("/admin/login"); }} className="btn-ghost" style={{ display: "flex", gap: 6, alignItems: "center", padding: "8px 16px", fontSize: 12, color: "var(--danger)" }}>

@@ -252,7 +252,7 @@ function simularBolaDeNeve() {
           "<strong>Notificação Push/WhatsApp</strong> quando gasto de uma categoria ultrapassa 90% do orçamento (via Twilio ou webhooks).",
           "<strong>PDF download em 1 clique</strong>: usar jsPDF + html2canvas para gerar relatório mensal estilizado.",
           "<strong>Dark mode + Light mode toggle</strong>: (opcional, mas o cliente ama sentir controle).",
-          "<strong>Sincronização entre dispositivos</strong>: via localStorage + backup manual em CSV ou Firebase (versão pro).",
+          "<strong>Sincronização entre dispositivos</strong>: dados financeiros persistidos por usuário no MongoDB Atlas, com sessão autenticada e atualização automática.",
           "<strong>Widgets de resumo</strong>: mini-cards com KPIs para o cliente compartilhar no Instagram (com watermark seu).",
         ],
       },

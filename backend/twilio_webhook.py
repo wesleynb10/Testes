@@ -13,12 +13,21 @@ import os
 import re
 import uuid
 import xml.sax.saxutils as xml_escape
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import ReturnDocument
+
+from financial_state import ensure_transaction_budget_item
+from receipt_vision import (
+    ReceiptVisionError,
+    analyze_receipt_media,
+    download_twilio_media,
+    media_fingerprint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -186,19 +195,29 @@ async def salvar_transacao(
     phone: str,
     raw_body: str,
     parsed: Dict[str, Any],
+    source: str = "whatsapp",
 ) -> dict:
+    occurred_at = None
+    if parsed.get("data"):
+        try:
+            occurred_at = datetime.strptime(parsed["data"], "%Y-%m-%d").replace(
+                tzinfo=timezone.utc
+            ).isoformat()
+        except (TypeError, ValueError):
+            occurred_at = None
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": user.get("id"),
         "user_email": user.get("email"),
         "phone": phone,
-        "source": "whatsapp",
+        "source": source,
         "raw_body": raw_body,
         "amount": float(parsed.get("valor") or 0),
         "category": parsed.get("categoria") or "desejos",
         "subcategory": parsed.get("subcategoria") or "Outros",
         "description": parsed.get("descricao") or "Lançamento WhatsApp",
         "payment_method": parsed.get("forma_pagamento"),
+        "occurred_at": occurred_at,
         "ai_meta": {
             "confianca": parsed.get("confianca"),
             "source": parsed.get("source"),
@@ -207,7 +226,143 @@ async def salvar_transacao(
     }
     await db.transactions.insert_one(doc)
     doc.pop("_id", None)
+    await ensure_transaction_budget_item(db, user, doc)
     return doc
+
+
+def _confirmation_intent(body: str) -> Optional[bool]:
+    normalized = re.sub(r"[^\w]", "", (body or "").strip().casefold())
+    if normalized in {"sim", "s", "confirmar", "confirmo", "ok", "pode"}:
+        return True
+    if normalized in {"nao", "não", "n", "cancelar", "cancela"}:
+        return False
+    return None
+
+
+async def _latest_pending(db: AsyncIOMotorDatabase, user_id: str) -> Optional[dict]:
+    return await db.pending_transactions.find_one(
+        {
+            "user_id": user_id,
+            "status": "pending",
+            "expires_at": {"$gte": datetime.now(timezone.utc).isoformat()},
+        },
+        sort=[("created_at", -1)],
+    )
+
+
+async def _handle_confirmation(
+    db: AsyncIOMotorDatabase,
+    user: dict,
+    phone: str,
+    body: str,
+    confirmed: bool,
+) -> Response:
+    pending = await _latest_pending(db, user["id"])
+    if not pending:
+        return twiml_message(
+            "Não encontrei nenhum comprovante aguardando confirmação. Envie uma nova foto ou PDF."
+        )
+
+    if not confirmed:
+        await db.pending_transactions.update_one(
+            {"id": pending["id"], "status": "pending"},
+            {
+                "$set": {
+                    "status": "cancelled",
+                    "resolved_at": datetime.now(timezone.utc).isoformat(),
+                }
+            },
+        )
+        return twiml_message("Comprovante cancelado. Nenhum lançamento foi criado.")
+
+    claimed = await db.pending_transactions.find_one_and_update(
+        {"id": pending["id"], "status": "pending"},
+        {
+            "$set": {
+                "status": "processing",
+                "resolved_at": datetime.now(timezone.utc).isoformat(),
+            }
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if not claimed:
+        return twiml_message("Este comprovante já foi processado.")
+
+    try:
+        tx = await salvar_transacao(
+            db,
+            user,
+            phone,
+            claimed.get("caption") or "Foto de comprovante",
+            claimed["parsed"],
+            source="whatsapp_image",
+        )
+        await db.pending_transactions.update_one(
+            {"id": claimed["id"]},
+            {"$set": {"status": "confirmed", "transaction_id": tx["id"]}},
+        )
+        value = f"R$ {tx['amount']:.2f}".replace(".", ",")
+        return twiml_message(
+            f"Comprovante confirmado! {tx['description']} — {value} "
+            f"({tx['category']}/{tx['subcategory']})."
+        )
+    except Exception:
+        await db.pending_transactions.update_one(
+            {"id": claimed["id"]},
+            {"$set": {"status": "pending"}, "$unset": {"resolved_at": ""}},
+        )
+        raise
+
+
+async def _handle_receipt_media(
+    db: AsyncIOMotorDatabase,
+    user: dict,
+    phone: str,
+    caption: str,
+    media_url: str,
+    media_type: str,
+) -> Response:
+    media = await download_twilio_media(media_url, media_type)
+    fingerprint = media_fingerprint(media)
+    duplicate = await db.pending_transactions.find_one(
+        {
+            "user_id": user["id"],
+            "image_fingerprint": fingerprint,
+            "status": {"$in": ["pending", "processing", "confirmed"]},
+        },
+        {"_id": 0},
+    )
+    if duplicate:
+        if duplicate.get("status") == "confirmed":
+            return twiml_message("Este comprovante já foi lançado anteriormente.")
+        return twiml_message(
+            "Este arquivo já está aguardando confirmação. Responda SIM ou NÃO."
+        )
+
+    parsed = await analyze_receipt_media(media, media_type, caption)
+    now = datetime.now(timezone.utc)
+    pending = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "user_email": user.get("email"),
+        "phone": phone,
+        "status": "pending",
+        "caption": caption[:300],
+        "media_type": media_type,
+        "image_fingerprint": fingerprint,
+        "parsed": parsed,
+        "created_at": now.isoformat(),
+        "expires_at": (now + timedelta(minutes=30)).isoformat(),
+    }
+    await db.pending_transactions.insert_one(pending)
+
+    value = f"R$ {parsed['valor']:.2f}".replace(".", ",")
+    date_text = f", data {parsed['data']}" if parsed.get("data") else ""
+    return twiml_message(
+        f"Identifiquei: {parsed['descricao']} — {value}{date_text} "
+        f"({parsed['categoria']}/{parsed['subcategoria']}). "
+        "Responda SIM para confirmar ou NÃO para cancelar."
+    )
 
 
 async def ensure_twilio_indexes(db: AsyncIOMotorDatabase) -> None:
@@ -217,6 +372,9 @@ async def ensure_twilio_indexes(db: AsyncIOMotorDatabase) -> None:
     await db.transactions.create_index("user_id")
     await db.transactions.create_index("phone")
     await db.transactions.create_index("created_at")
+    await db.pending_transactions.create_index([("user_id", 1), ("status", 1), ("created_at", -1)])
+    await db.pending_transactions.create_index([("user_id", 1), ("image_fingerprint", 1)])
+    await db.pending_transactions.create_index("expires_at")
 
 
 # -----------------------------------------------------------------------------
@@ -227,6 +385,9 @@ async def twilio_whatsapp_webhook(
     request: Request,
     From: str = Form(...),
     Body: str = Form(""),
+    NumMedia: int = Form(0),
+    MediaUrl0: str = Form(""),
+    MediaContentType0: str = Form(""),
 ):
     """
     Webhook chamado pela Twilio a cada mensagem WhatsApp.
@@ -234,12 +395,16 @@ async def twilio_whatsapp_webhook(
     Campos form-urlencoded típicos da Twilio:
       From = whatsapp:+5511...
       Body = texto da mensagem
+      NumMedia / MediaUrl0 / MediaContentType0 = foto ou PDF opcional
     """
     db: AsyncIOMotorDatabase = request.app.state.db
 
     phone = limpar_telefone(From)
     body = (Body or "").strip()
-    logger.info(f"[twilio] msg from={phone} body={body[:120]!r}")
+    logger.info(
+        f"[twilio] msg from={phone} media={NumMedia} "
+        f"type={MediaContentType0!r} body={body[:120]!r}"
+    )
 
     if not phone:
         return twiml_message(
@@ -254,12 +419,30 @@ async def twilio_whatsapp_webhook(
             f"Cadastre-se ou vincule seu número em {app_url} e tente de novo."
         )
 
-    if not body:
-        return twiml_message(
-            "Envie o lançamento no formato: Almoço R$ 42,50 no débito"
-        )
-
     try:
+        if NumMedia > 0:
+            if not MediaUrl0:
+                raise ReceiptVisionError("A Twilio não enviou a URL do arquivo.")
+            return await _handle_receipt_media(
+                db,
+                user,
+                phone,
+                body,
+                MediaUrl0,
+                MediaContentType0,
+            )
+
+        confirmation = _confirmation_intent(body)
+        if confirmation is not None:
+            return await _handle_confirmation(
+                db, user, phone, body, confirmed=confirmation
+            )
+
+        if not body:
+            return twiml_message(
+                "Envie uma foto ou PDF do comprovante, ou escreva: Almoço R$ 42,50 no débito"
+            )
+
         parsed = enviar_para_emergent_ai(body)
         tx = await salvar_transacao(db, user, phone, body, parsed)
         logger.info(
@@ -270,6 +453,12 @@ async def twilio_whatsapp_webhook(
         return twiml_message(
             f"Lançamento realizado com sucesso! "
             f"{tx['description']} — {valor_fmt} ({tx['category']}/{tx['subcategory']})."
+        )
+    except ReceiptVisionError as e:
+        logger.warning(f"[twilio] receipt rejected from={phone}: {e}")
+        return twiml_message(
+            f"Não consegui processar o arquivo: {e} "
+            "Você também pode escrever o valor, por exemplo: Mercado R$ 120,00 no pix."
         )
     except Exception as e:
         logger.exception(f"[twilio] failed to process message: {e}")

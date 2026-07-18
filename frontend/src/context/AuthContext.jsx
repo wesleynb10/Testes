@@ -25,13 +25,19 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const register = async ({ name, email, password, phone }) => {
+    const { data } = await client.post("/auth/register", { name, email, password, phone });
+    setUser(data);
+    return data;
+  };
+
   const logout = async () => {
     try { await client.post("/auth/logout"); } catch {}
     setUser(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, api: client }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, api: client }}>
       {children}
     </AuthContext.Provider>
   );
