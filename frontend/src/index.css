@@ -213,6 +213,16 @@ body {
 }
 .input-premium::placeholder { color: var(--text-muted); }
 
+/* Native date inputs: make the calendar icon visible on dark UI */
+.input-premium[type="date"] {
+  color-scheme: dark;
+}
+.input-premium[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.85;
+  filter: invert(0.85) sepia(0.4) saturate(2) hue-rotate(5deg);
+}
+
 /* ============================================================
    Sidebar navigation
    ============================================================ */

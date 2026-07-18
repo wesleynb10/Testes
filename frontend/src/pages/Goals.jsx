@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useFinance } from "@/context/FinanceContext";
 import { brl, pct, parseNum } from "@/lib/format";
+import { DatePicker } from "@/components/DatePicker";
 import { Plus, Trash2, Target as TargetIcon, Sparkles } from "lucide-react";
 
 const EXTRA_PRESETS = [0, 200, 500, 1000];
@@ -37,12 +38,27 @@ function monthsToBalance(remaining, monthly) {
   return Math.ceil(gap / monthly);
 }
 
+function monthsLabel(n) {
+  if (!Number.isFinite(n)) return "∞";
+  if (n === 1) return "1 mês";
+  return `${n} meses`;
+}
+
+function defaultDeadlineIso(yearsAhead = 2) {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + yearsAhead);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function Goals() {
   const { state, addGoal, updateGoal, removeGoal, updateFire } = useFinance();
   const goals = state.goals;
   const fire = state.fire;
-  const [newGoal, setNewGoal] = useState({ name: "", target: "", current: "", deadline: "" });
+  const [newGoal, setNewGoal] = useState({
+    name: "", target: "", current: "", deadline: defaultDeadlineIso(2),
+  });
   const [whatIfExtra, setWhatIfExtra] = useState(300);
+  const expensesInputRef = useRef(null);
 
   const fireCalc = useMemo(() => computeFIRE(fire), [fire]);
   const fireWithExtra = useMemo(
@@ -67,18 +83,24 @@ export default function Goals() {
       name: newGoal.name.trim(),
       target: parseNum(newGoal.target),
       current: parseNum(newGoal.current),
-      deadline: newGoal.deadline || "2028-01-01",
+      deadline: newGoal.deadline || defaultDeadlineIso(2),
     });
-    setNewGoal({ name: "", target: "", current: "", deadline: "" });
+    setNewGoal({ name: "", target: "", current: "", deadline: defaultDeadlineIso(2) });
+  };
+
+  const focusExpensesField = () => {
+    expensesInputRef.current?.focus();
+    expensesInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   return (
-    <div className="p-8 space-y-6" data-testid="goals-page">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-full overflow-x-hidden" data-testid="goals-page">
       <header>
         <div className="eyebrow mb-3">Metas de Longo Prazo · Número da Liberdade</div>
         <h1 className="h-display">Onde você quer estar em <span className="text-shimmer">10 anos?</span></h1>
         <p className="mt-3 text-[15px] max-w-2xl" style={{ color: "var(--text-secondary)" }}>
-          Metas concretas + cálculo automático de Independência Financeira baseado na Regra dos 4% (safe withdrawal rate).
+          O Número da Liberdade é calculado automaticamente (gasto mensal × 12 ÷ taxa de retirada).
+          Metas com prazo ficam na seção de baixo — essas sim você edita o valor alvo.
         </p>
       </header>
 
@@ -88,12 +110,38 @@ export default function Goals() {
             <Sparkles className="w-4 h-4" style={{ color: "var(--gold-bright)" }} />
             <div className="eyebrow">Número da Liberdade</div>
           </div>
-          <div className="kpi-value gold text-shimmer" style={{ fontSize: 42 }}>
+          <button
+            type="button"
+            className="kpi-value gold text-shimmer text-left w-full"
+            style={{ fontSize: 42, background: "none", border: "none", padding: 0, cursor: "pointer" }}
+            onClick={focusExpensesField}
+            title="Clique para editar o gasto mensal que alimenta este cálculo"
+            data-testid="fire-target-button"
+          >
             {brl(fireCalc.target)}
-          </div>
+          </button>
           <p className="text-[13px] mt-3" style={{ color: "var(--text-secondary)" }}>
-            Patrimônio necessário para viver de renda passiva a <span style={{ color: "var(--gold-bright)" }}>{fire.safeWithdrawal}% a.a.</span>
+            Patrimônio para viver de renda a{" "}
+            <span style={{ color: "var(--gold-bright)" }}>{fire.safeWithdrawal}% a.a.</span>
           </p>
+          <p className="text-[11px] mt-2 leading-relaxed" style={{ color: "var(--text-muted)" }} data-testid="fire-formula">
+            {brl(fire.monthlyExpenses)}/mês × 12 = {brl(fire.monthlyExpenses * 12)}/ano.
+            {" "}Para viver disso sacando {fire.safeWithdrawal}% ao ano, o patrimônio precisa ser{" "}
+            <span className="font-mono-num" style={{ color: "var(--gold-bright)" }}>{brl(fireCalc.target)}</span>
+            {" "}({brl(fire.monthlyExpenses * 12)} ÷ {fire.safeWithdrawal / 100}).
+          </p>
+          <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            Não é “42 mil + 4%”. É: quanto precisa ter investido para que {fire.safeWithdrawal}% desse valor cubra seus gastos anuais.
+          </p>
+          <button
+            type="button"
+            className="text-[12px] mt-2 underline-offset-2 hover:underline"
+            style={{ color: "var(--gold-bright)", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+            onClick={focusExpensesField}
+            data-testid="fire-edit-hint"
+          >
+            Para mudar este valor, edite o gasto mensal ou a SWR →
+          </button>
 
           <div className="mt-6">
             <div className="flex justify-between text-[11px] mb-2" style={{ color: "var(--text-muted)" }}>
@@ -110,7 +158,9 @@ export default function Goals() {
               <span className="text-[14px] font-sans" style={{ color: "var(--text-muted)" }}> anos</span>
             </div>
             <div className="text-[12px] mt-1" style={{ color: "var(--text-secondary)" }}>
-              {fireCalc.monthsToFire === Infinity ? "Aumente aportes para tornar possível" : `≈ ${fireCalc.monthsToFire} meses no ritmo atual`}
+              {fireCalc.monthsToFire === Infinity
+                ? "Aumente aportes para tornar possível"
+                : `≈ ${monthsLabel(fireCalc.monthsToFire)} no ritmo atual`}
             </div>
           </div>
         </div>
@@ -120,10 +170,17 @@ export default function Goals() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label className="text-[12px] block mb-1.5" style={{ color: "var(--text-secondary)" }}>Gasto mensal desejado no futuro</label>
-              <input data-testid="fire-monthly-expenses" type="number" className="input-premium font-mono-num"
+              <input
+                ref={expensesInputRef}
+                data-testid="fire-monthly-expenses"
+                type="number"
+                className="input-premium font-mono-num"
                 value={fire.monthlyExpenses}
-                onChange={(e) => updateFire({ monthlyExpenses: parseNum(e.target.value) })} />
-              <div className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>Padrão de vida que você quer manter</div>
+                onChange={(e) => updateFire({ monthlyExpenses: parseNum(e.target.value) })}
+              />
+              <div className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+                Este campo define o Número da Liberdade (padrão de vida futuro)
+              </div>
             </div>
             <div>
               <label className="text-[12px] block mb-1.5" style={{ color: "var(--text-secondary)" }}>Taxa de retirada segura (SWR)</label>
@@ -203,9 +260,9 @@ export default function Goals() {
                     : fireWithExtra.monthsToFire === Infinity
                       ? "Ainda insuficiente — aumente o aporte base ou o extra."
                       : monthsSaved === null
-                        ? <>Com esse extra a liberdade passa a ser possível em ≈ <span className="font-semibold" style={{ color: "var(--gold-bright)" }}>{fireWithExtra.monthsToFire} meses</span>.</>
+                        ? <>Com esse extra a liberdade passa a ser possível em ≈ <span className="font-semibold" style={{ color: "var(--gold-bright)" }}>{monthsLabel(fireWithExtra.monthsToFire)}</span>.</>
                         : monthsSaved > 0
-                          ? <>Se aportar +{brl(whatIfExtra)}, você antecipa <span className="font-semibold" style={{ color: "var(--gold-bright)" }}>{monthsSaved} meses</span> ({(monthsSaved / 12).toFixed(1)} anos).</>
+                          ? <>Se aportar +{brl(whatIfExtra)}, você antecipa <span className="font-semibold" style={{ color: "var(--gold-bright)" }}>{monthsLabel(monthsSaved)}</span> ({(monthsSaved / 12).toFixed(1)} anos).</>
                           : "Nesse valor o ganho de tempo ainda é pequeno — experimente um extra maior."}
                 </p>
               </div>
@@ -219,6 +276,9 @@ export default function Goals() {
           <div>
             <div className="kpi-label mb-1">Metas Ativas</div>
             <div className="font-display text-[22px]" style={{ letterSpacing: "-0.02em" }}>Seus sonhos, com prazo.</div>
+            <p className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>
+              Aqui o valor da meta (alvo) é editável — diferente do Número da Liberdade acima.
+            </p>
           </div>
           <TargetIcon className="w-5 h-5" style={{ color: "var(--gold)" }} />
         </div>
@@ -228,12 +288,14 @@ export default function Goals() {
             const p = g.target > 0 ? Math.min(100, (g.current / g.target) * 100) : 0;
             const remaining = Math.max(0, g.target - g.current);
             const parsedDeadline = g.deadline ? new Date(`${g.deadline}T12:00:00`) : null;
-            const monthsLeft = parsedDeadline && !Number.isNaN(parsedDeadline.getTime())
-              ? Math.max(1, Math.ceil((parsedDeadline - new Date()) / (1000 * 60 * 60 * 24 * 30)))
-              : 1;
-            const monthlyNeeded = remaining / monthsLeft;
-            const monthsAtNeeded = monthsToBalance(remaining, monthlyNeeded);
-            const monthsWithExtra = monthsToBalance(remaining, monthlyNeeded + whatIfExtra);
+            const hasDeadline = parsedDeadline && !Number.isNaN(parsedDeadline.getTime());
+            const monthsLeft = hasDeadline
+              ? Math.max(1, Math.ceil((parsedDeadline - new Date()) / (1000 * 60 * 60 * 24 * 30.4375)))
+              : null;
+            const monthlyNeeded = monthsLeft ? remaining / monthsLeft : null;
+            const monthsAtNeeded = monthlyNeeded != null ? monthsToBalance(remaining, monthlyNeeded) : Infinity;
+            const monthsWithExtra =
+              monthlyNeeded != null ? monthsToBalance(remaining, monthlyNeeded + whatIfExtra) : Infinity;
             const goalMonthsSaved =
               monthsAtNeeded !== Infinity && monthsWithExtra !== Infinity
                 ? Math.max(0, monthsAtNeeded - monthsWithExtra)
@@ -244,7 +306,7 @@ export default function Goals() {
                   <input data-testid={`goal-name-${g.id}`} className="input-premium lg:col-span-4" value={g.name}
                     onChange={(e) => updateGoal(g.id, { name: e.target.value })} />
                   <div className="lg:col-span-2">
-                    <div className="text-[10px] uppercase tracking-[0.14em] mb-1" style={{ color: "var(--text-muted)" }}>Meta</div>
+                    <div className="text-[10px] uppercase tracking-[0.14em] mb-1" style={{ color: "var(--text-muted)" }}>Meta (alvo)</div>
                     <input data-testid={`goal-target-${g.id}`} type="number" className="input-premium font-mono-num" value={g.target}
                       onChange={(e) => updateGoal(g.id, { target: parseNum(e.target.value) })} />
                   </div>
@@ -255,8 +317,12 @@ export default function Goals() {
                   </div>
                   <div className="lg:col-span-3">
                     <div className="text-[10px] uppercase tracking-[0.14em] mb-1" style={{ color: "var(--text-muted)" }}>Prazo</div>
-                    <input data-testid={`goal-deadline-${g.id}`} type="date" className="input-premium" value={g.deadline}
-                      onChange={(e) => updateGoal(g.id, { deadline: e.target.value })} />
+                    <DatePicker
+                      data-testid={`goal-deadline-${g.id}`}
+                      value={g.deadline || ""}
+                      onChange={(deadline) => updateGoal(g.id, { deadline })}
+                      placeholder="Definir prazo"
+                    />
                   </div>
                   <div className="lg:col-span-1 flex justify-end">
                     <button data-testid={`goal-remove-${g.id}`} onClick={() => removeGoal(g.id)}
@@ -269,18 +335,28 @@ export default function Goals() {
                   <div className="flex justify-between text-[11px] mb-2 flex-wrap gap-2">
                     <span style={{ color: "var(--text-muted)" }}>
                       Faltam <span className="font-mono-num font-semibold" style={{ color: "var(--text-primary)" }}>{brl(remaining)}</span>
-                      · Aporte necessário: <span className="font-mono-num font-semibold" style={{ color: "var(--gold-bright)" }}>{brl(monthlyNeeded)}/mês</span>
+                      {monthlyNeeded != null ? (
+                        <>
+                          {" "}· Aporte necessário:{" "}
+                          <span className="font-mono-num font-semibold" style={{ color: "var(--gold-bright)" }}>
+                            {brl(monthlyNeeded)}/mês
+                          </span>
+                          {" "}({monthsLabel(monthsLeft)} até o prazo)
+                        </>
+                      ) : (
+                        <span style={{ color: "var(--danger)" }}> · Defina um prazo para calcular o aporte mensal</span>
+                      )}
                     </span>
                     <span className="font-mono-num font-semibold" style={{ color: "var(--gold-bright)" }}>{pct(p)}</span>
                   </div>
                   <div className="thermometer"><div className="thermometer-fill" style={{ width: `${p}%` }} /></div>
-                  {whatIfExtra > 0 && remaining > 0 && (
+                  {whatIfExtra > 0 && remaining > 0 && monthlyNeeded != null && (
                     <p className="text-[12px] mt-3" style={{ color: "var(--text-secondary)" }} data-testid={`goal-whatif-${g.id}`}>
                       Se aportar +{brl(whatIfExtra)} nesta meta, antecipa{" "}
                       <span className="font-semibold" style={{ color: "var(--gold-bright)" }}>
-                        {goalMonthsSaved} {goalMonthsSaved === 1 ? "mês" : "meses"}
+                        {monthsLabel(goalMonthsSaved)}
                       </span>
-                      {" "}(≈ {monthsWithExtra === Infinity ? "∞" : monthsWithExtra} meses no total).
+                      {" "}(≈ {monthsLabel(monthsWithExtra)} no total).
                     </p>
                   )}
                 </div>
@@ -296,8 +372,13 @@ export default function Goals() {
                 value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: e.target.value })} />
               <input data-testid="goal-new-current" type="number" className="input-premium font-mono-num lg:col-span-2" placeholder="Atual"
                 value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: e.target.value })} />
-              <input data-testid="goal-new-deadline" type="date" className="input-premium lg:col-span-3"
-                value={newGoal.deadline} onChange={(e) => setNewGoal({ ...newGoal, deadline: e.target.value })} />
+              <DatePicker
+                data-testid="goal-new-deadline"
+                className="lg:col-span-3"
+                value={newGoal.deadline}
+                onChange={(deadline) => setNewGoal({ ...newGoal, deadline })}
+                placeholder="Prazo"
+              />
               <button data-testid="goal-add" onClick={handleAdd} className="btn-gold lg:col-span-1" style={{ display: "flex", justifyContent: "center", padding: "10px" }}>
                 <Plus className="w-4 h-4" />
               </button>
