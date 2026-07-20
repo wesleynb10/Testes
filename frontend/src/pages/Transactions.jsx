@@ -115,8 +115,8 @@ export default function Transactions() {
           </p>
         </div>
         <div className="card-gold px-6 py-4 text-right">
-          <div className="text-[10px] uppercase tracking-[0.2em]" style={{ color: "var(--ink-void)", opacity: 0.7 }}>Total lançado</div>
-          <div className="font-display text-[26px] leading-none" style={{ color: "var(--ink-void)" }}>{brl(total)}</div>
+          <div className="text-[10px] uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>Total lançado</div>
+          <div className="font-display text-[26px] leading-none" style={{ color: "var(--gold-bright)" }}>{brl(total)}</div>
         </div>
       </header>
 
