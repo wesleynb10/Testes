@@ -982,7 +982,7 @@ export default function Debts() {
                       updateDebt(d.id, { minPayment: Math.round(pmt * 100) / 100 });
                     }}
                   >
-                    Price {d.termMonths}m: {brl(priceInstallment(d.balance, monthlyRatePct(d), d.termMonths))}
+                    Preço {d.termMonths}m: {brl(priceInstallment(d.balance, monthlyRatePct(d), d.termMonths))}
                   </button>
                 )}
               </div>
@@ -1095,7 +1095,7 @@ export default function Debts() {
                     setNewDebt({ ...newDebt, minPayment: String(Math.round(pmt * 100) / 100) });
                   }}
                 >
-                  Calcular parcela Price
+                  Calcular parcela Preço
                 </button>
               )}
             </div>
