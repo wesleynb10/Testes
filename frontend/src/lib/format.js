@@ -21,6 +21,14 @@ export const pct = (n, digits = 1) => {
   return `${n.toFixed(digits)}%`;
 };
 
+// Remove zeros à esquerda mantendo o "0" antes do separador decimal (0,5 / 0.5)
+// e o "0" isolado. Evita que campos exibam valores como "05000" ou "007".
+export const stripLeadingZeros = (v) => {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  return s.replace(/^(-?)0+(\d)/, "$1$2");
+};
+
 export const parseNum = (v) => {
   if (typeof v === "number") return v;
   if (!v) return 0;
