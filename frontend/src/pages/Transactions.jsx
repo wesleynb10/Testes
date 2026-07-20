@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth, formatApiError } from "@/context/AuthContext";
 import { useFinance } from "@/context/FinanceContext";
-import { brl } from "@/lib/format";
+import { brl, stripLeadingZeros } from "@/lib/format";
 import {
   Plus, Loader2, Trash2, MessageCircle, Smartphone, AlertCircle, Receipt,
 } from "lucide-react";
@@ -126,7 +126,7 @@ export default function Transactions() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
           <div>
             <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Valor (R$)</label>
-            <input data-testid="tx-amount" className="input-premium" inputMode="decimal" placeholder="42,50" value={form.amount} onChange={set("amount")} />
+            <input data-testid="tx-amount" className="input-premium" inputMode="decimal" placeholder="42,50" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: stripLeadingZeros(e.target.value) }))} />
           </div>
           <div>
             <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Categoria</label>

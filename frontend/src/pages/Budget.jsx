@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useFinance } from "@/context/FinanceContext";
-import { brl, pct, parseNum } from "@/lib/format";
+import { brl, pct, parseNum, stripLeadingZeros } from "@/lib/format";
 import { Plus, Trash2, PieChart as PieIcon, Upload } from "lucide-react";
 import CSVImport from "@/components/CSVImport";
 
@@ -148,7 +148,7 @@ function CategoryBlock({ cat, income }) {
                 className="input-premium font-mono-num"
                 placeholder="0"
                 value={newPlanned}
-                onChange={(e) => setNewPlanned(e.target.value)}
+                onChange={(e) => setNewPlanned(stripLeadingZeros(e.target.value))}
                 onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               />
             </td>

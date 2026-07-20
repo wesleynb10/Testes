@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useFinance } from "@/context/FinanceContext";
 import { useAuth } from "@/context/AuthContext";
-import { brl, parseNum } from "@/lib/format";
+import { brl, parseNum, stripLeadingZeros } from "@/lib/format";
 import {
   Gem,
   Wallet,
@@ -240,7 +240,7 @@ export default function Onboarding() {
                 inputMode="decimal"
                 placeholder="Ex: 6500"
                 value={income}
-                onChange={(e) => setIncome(e.target.value)}
+                onChange={(e) => setIncome(stripLeadingZeros(e.target.value))}
                 autoFocus
               />
               {incomeValue > 0 && (
@@ -343,7 +343,7 @@ export default function Onboarding() {
                         placeholder="R$ 12.000"
                         inputMode="decimal"
                         value={debt.balance}
-                        onChange={(e) => setDebt((d) => ({ ...d, balance: e.target.value }))}
+                        onChange={(e) => setDebt((d) => ({ ...d, balance: stripLeadingZeros(e.target.value) }))}
                       />
                       <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
                         Saldo que falta quitar hoje
@@ -359,7 +359,7 @@ export default function Onboarding() {
                         placeholder="Ex: 2,5"
                         inputMode="decimal"
                         value={debt.rate}
-                        onChange={(e) => setDebt((d) => ({ ...d, rate: e.target.value }))}
+                        onChange={(e) => setDebt((d) => ({ ...d, rate: stripLeadingZeros(e.target.value) }))}
                       />
                       <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
                         % a.m. — se tem juros, trate como financiamento
@@ -375,7 +375,7 @@ export default function Onboarding() {
                         placeholder="R$ 450"
                         inputMode="decimal"
                         value={debt.minPayment}
-                        onChange={(e) => setDebt((d) => ({ ...d, minPayment: e.target.value }))}
+                        onChange={(e) => setDebt((d) => ({ ...d, minPayment: stripLeadingZeros(e.target.value) }))}
                       />
                       <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
                         Quanto você paga (ou pretende pagar) por mês
@@ -391,7 +391,7 @@ export default function Onboarding() {
                         placeholder="Ex: 12"
                         inputMode="numeric"
                         value={debt.termMonths}
-                        onChange={(e) => setDebt((d) => ({ ...d, termMonths: e.target.value }))}
+                        onChange={(e) => setDebt((d) => ({ ...d, termMonths: stripLeadingZeros(e.target.value) }))}
                       />
                       <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
                         Em quantos meses quer (ou precisa) quitar — preencha sempre que souber

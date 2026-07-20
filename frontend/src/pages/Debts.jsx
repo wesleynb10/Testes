@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Reorder, useDragControls } from "framer-motion";
 import { useFinance } from "@/context/FinanceContext";
-import { brl, parseNum } from "@/lib/format";
+import { brl, parseNum, stripLeadingZeros } from "@/lib/format";
 import {
   Plus, Trash2, Snowflake, Zap, TrendingDown, Check, Loader2,
   ListOrdered, ChevronUp, ChevronDown, CalendarRange, Wallet, GripVertical,
@@ -1055,7 +1055,7 @@ export default function Debts() {
             <div>
               <label className="text-[10px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>Quanto deve</label>
               <input data-testid="debt-new-balance" type="number" className="input-premium font-mono-num" placeholder="Ex: 25000"
-                value={newDebt.balance} onChange={(e) => setNewDebt({ ...newDebt, balance: e.target.value })} />
+                value={newDebt.balance} onChange={(e) => setNewDebt({ ...newDebt, balance: stripLeadingZeros(e.target.value) })} />
             </div>
             <div>
               <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -1077,12 +1077,12 @@ export default function Debts() {
                 </div>
               </div>
               <input data-testid="debt-new-rate" type="number" step="0.01" className="input-premium font-mono-num" placeholder={newDebt.ratePeriod === "aa" ? "Ex: 2" : "Ex: 1,5"}
-                value={newDebt.rate} onChange={(e) => setNewDebt({ ...newDebt, rate: e.target.value })} />
+                value={newDebt.rate} onChange={(e) => setNewDebt({ ...newDebt, rate: stripLeadingZeros(e.target.value) })} />
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>Parcela mensal</label>
               <input data-testid="debt-new-min" type="number" className="input-premium font-mono-num" placeholder="Parcela / mês"
-                value={newDebt.minPayment} onChange={(e) => setNewDebt({ ...newDebt, minPayment: e.target.value })} />
+                value={newDebt.minPayment} onChange={(e) => setNewDebt({ ...newDebt, minPayment: stripLeadingZeros(e.target.value) })} />
               {parseNum(newDebt.balance) > 0 && parseNum(newDebt.termMonths) > 0 && (
                 <button
                   type="button"
@@ -1102,7 +1102,7 @@ export default function Debts() {
             <div>
               <label className="text-[10px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>Prazo (meses)</label>
               <input data-testid="debt-new-term" type="number" min={0} className="input-premium font-mono-num" placeholder="Ex: 12"
-                value={newDebt.termMonths} onChange={(e) => setNewDebt({ ...newDebt, termMonths: e.target.value })} />
+                value={newDebt.termMonths} onChange={(e) => setNewDebt({ ...newDebt, termMonths: stripLeadingZeros(e.target.value) })} />
             </div>
           </div>
           <div className="flex justify-end">
