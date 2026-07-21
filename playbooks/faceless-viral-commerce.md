@@ -243,15 +243,18 @@ Handoff Researcher → produção: ficha do produto no chat/planilha até **10h*
 
 ## 9. Setup checklists
 
-### 9.1 Afiliados (Semanas 1–2)
+### 9.1 Afiliados + TikTok (Semanas 1–2)
 
+- [ ] **Researcher** briefado (SLA diário + template de ficha)
+- [ ] 2 contas TikTok faceless no mesmo cluster
 - [ ] Conta Shopee Afiliados aprovada
 - [ ] Segunda rede cadastrada (Amazon Assoc. / Magalu / Hotmart — conforme nicho)
 - [ ] Link de afiliado testado (compra teste ou preview)
 - [ ] Divulgação clara nos vídeos/bio (`#publi` / “conteúdo com link afiliado”)
-- [ ] Bio com **1** oferta ativa
-- [ ] Planilha: `data | conta | produto | link | views | cliques | vendas | comissão`
-- [ ] Meta da fase: ≥1 venda atribuída a vídeo
+- [ ] Bio/CTA TikTok com **1** oferta ativa
+- [ ] Planilha: `data | conta_tiktok | produto | link | views | cliques | vendas | comissão | researcher`
+- [ ] Meta da fase: ≥1 venda atribuída a vídeo **no TikTok**
+- [ ] Reels/Shorts: ainda **não** (só após 1º sinal)
 
 ### 9.2 Loja / dropshipping (Semanas 3–4 — só produto validado)
 
@@ -307,8 +310,8 @@ Mate o criativo pago se:
 
 - Orgânico: 5–10 novos hooks do **mesmo** produto vencedor
 - Loja: migrar afiliado → SKU próprio no produto que já vendeu
-- Ads: aumentar verba só em criativos com CPA estável por 3+ dias
-- Contas: abrir 2ª página no **mesmo** cluster (não nicho novo)
+- Ads: aumentar verba só em criativos TikTok com CPA estável por 3+ dias
+- Contas: abrir mais uma página TikTok no **mesmo** cluster; só então crosspost Reels
 
 ---
 
@@ -361,7 +364,9 @@ Mate o criativo pago se:
 
 ## 14. Fase 2 — Spec do sistema automatizado
 
-Quando o playbook estiver rodando manualmente por ≥2 semanas, construir um sistema (app no repo) com os módulos abaixo.
+MVP implementado em [`apps/faceless-viral/`](../apps/faceless-viral/README.md) (scorecard, 5 hooks, Kanban TikTok-first, CSV, checklist, dashboard + alerts).
+
+Quando o playbook estiver rodando manualmente por ≥2 semanas, evoluir o sistema abaixo.
 
 ### 14.1 Objetivos
 
