@@ -92,6 +92,8 @@ Só avançar para produção se **score total ≥ 7**.
 - Contas afiliadas concorrentes (o que está saturando)
 - Google Trends + buscas “viral products [mês]”
 
+**Quem escolhe:** o **Researcher** (papel dedicado — não o closer). Entrega diária: 1–2 produtos com score ≥7 + ficha preenchida + link afiliado. O Closer só veta por compliance/margem; não pesquisa.
+
 **Template de registro (copiar por produto):**
 
 ```
@@ -103,6 +105,7 @@ Score (0–10):
 Hook visual (1 frase):
 Dor que resolve:
 Link afiliado / fornecedor:
+Researcher:
 Decisão: PRODUZIR / ARQUIVAR
 ```
 
@@ -127,9 +130,10 @@ Decisão: PRODUZIR / ARQUIVAR
 | Áudio | Som trending (volume baixo sob a voz) |
 | Agendamento | CapCut / Meta Business Suite / Postiz / Late |
 
-### Volume inicial
+### Volume inicial (TikTok-first)
 
-- **3–5 vídeos/dia × 2–3 contas = 9–15 posts/dia**
+- **Fase 0 (semanas 1–2):** só TikTok — **3–5 vídeos/dia × 2 contas TikTok = 6–10 posts/dia**
+- Reels e Shorts entram só depois de 1 sinal claro no TikTok (views + cliques ou venda)
 - **1 produto = 5–10 ângulos/hooks** (nunca um único vídeo)
 
 ---
@@ -193,39 +197,47 @@ Use o mesmo produto; troque só o gancho. Preencha `[PRODUTO]`, `[DOR]`, `[RESUL
 
 ---
 
-## 7. Distribuição
+## 7. Distribuição (TikTok-first)
 
-| Ordem | Plataforma | Papel |
-|-------|------------|-------|
-| 1 | TikTok | Descoberta mais rápida |
-| 2 | Instagram Reels | Mesmo corte; bio com link |
-| 3 | YouTube Shorts | Longtail + monetização depois |
+**Prioridade no início: 100% TikTok.** Não abrir Reels/Shorts até o TikTok validar oferta.
 
-**Contas:** 2–3 páginas faceless por cluster. Crosspost no mesmo dia; captions nativas (não copie idêntico palavra por palavra).
+| Fase | Plataforma | Papel |
+|------|------------|-------|
+| Agora (semanas 1–4) | **TikTok only** | Descoberta + validação de produto |
+| Depois do 1º sinal | Instagram Reels | Mesmo corte; bio com link |
+| Depois | YouTube Shorts | Longtail + monetização depois |
 
-**Link-in-bio:** Linktree / Beacons / Stan → **1 oferta por vez** (afiliado primeiro; depois loja).
+**Contas iniciais:** 2 páginas faceless **só no TikTok**, mesmo cluster. Captions nativas; variar hooks entre contas.
+
+**Link-in-bio / TikTok:** link na bio (quando liberado) ou CTA “comenta EU QUERO” + DM/link — **1 oferta por vez** (afiliado primeiro; depois loja).
+
+**Ads iniciais:** TikTok Ads primeiro; Meta Ads só após loja + pixel estáveis.
 
 ---
 
 ## 8. Rotina diária e semanal
 
-### Diária (~2–3h no início)
+### Diária (papéis separados)
 
-| Bloco | Tempo | Tarefa |
-|-------|-------|--------|
-| A — Pesquisa | 30–45 min | Scorecard em 5–10 produtos; escolher 1–2 ≥7 |
-| B — Roteiro | 20–30 min | 5 hooks para o produto do dia |
-| C — Edição | 60–90 min | Batch CapCut (3–5 cuts) |
-| D — Post + engajamento | 20–30 min | Postar, responder comentários CTA, fixar comentário com CTA |
-| E — Tracking | 10 min | Anotar views, retenção, cliques, vendas |
+| Bloco | Tempo | Dono | Tarefa |
+|-------|-------|------|--------|
+| A — Pesquisa | 30–45 min | **Researcher** | Scorecard em 5–10 produtos; entregar 1–2 ≥7 |
+| B — Roteiro | 20–30 min | Editor / Closer | 5 hooks para o produto aprovado |
+| C — Edição | 60–90 min | Editor | Batch CapCut (3–5 cuts) |
+| D — Post TikTok + engajamento | 20–30 min | Poster | Postar nas 2 contas TikTok, responder CTA, fixar comentário |
+| E — Tracking | 10 min | Closer | Anotar views, retenção, cliques, vendas |
+
+Handoff Researcher → produção: ficha do produto no chat/planilha até **10h** (ou horário fixo do time). Sem ficha, não edita.
 
 ### Semanal
 
-- Revisar top 10% de criativos (retenção + cliques)
+- Researcher: pipeline de 7–14 produtos ranqueados para a semana seguinte
+- Revisar top 10% de criativos **no TikTok** (retenção + cliques)
 - Matar produtos sem sinal (ver critérios kill)
-- Atualizar bio para a oferta vencedora
+- Atualizar bio/CTA para a oferta vencedora
 - Pedir amostra / cotar dropship do que vendeu
 - Backup de contas + planilha de UTMs
+- Só então avaliar crosspost para Reels
 
 ---
 
@@ -302,14 +314,23 @@ Mate o criativo pago se:
 
 ## 11. Estrutura de time mínimo
 
-| Papel | Função | Início |
-|-------|--------|--------|
-| Researcher | Score de produtos | Você |
-| Editor | CapCut batch | Você / VA |
-| Poster | Agendar + comentar | Você / VA |
-| Closer | Afiliado + loja + ads | Você |
+| Papel | Função | Quem |
+|-------|--------|------|
+| **Researcher** | Pesquisa, scorecard, decisão PRODUZIR/ARQUIVAR, fila semanal de produtos | **Papel dedicado (contratar / VA)** |
+| Editor | CapCut batch a partir da ficha do Researcher | VA / você |
+| Poster | Postar no TikTok + comentar CTA | VA / você |
+| Closer | Afiliados, loja, TikTok Ads, veto de compliance/margem | Você |
 
-**Escalada:** VA de edição + batch semanal de 50–100 cuts. Você fica em pesquisa, ofertas e ads.
+**Researcher — SLA diário:**
+
+- Analisar 5–10 produtos (TikTok Creative Center + Shopee/Amazon)
+- Entregar 1–2 fichas com score ≥7
+- Incluir: hook visual, dor, link afiliado, preço, score
+- Não edita vídeo e não gerencia ads
+
+**Você (Closer):** ofertas, bio, tracking, loja e ads. Não escolhe produto no dia a dia.
+
+**Escalada:** VA de edição + batch semanal de 50–100 cuts. Researcher continua dono da seleção.
 
 ---
 
@@ -344,8 +365,8 @@ Quando o playbook estiver rodando manualmente por ≥2 semanas, construir um sis
 
 ### 14.1 Objetivos
 
-- Acelerar pesquisa → roteiro → fila de produção → postagem → atribuição de receita
-- Manter o humano no loop para score final e aprovação de ads
+- Acelerar pesquisa → roteiro → fila de produção → postagem TikTok → atribuição de receita
+- **Researcher** no loop para score final; Closer no loop para aprovação de ads
 
 ### 14.2 Módulos
 
@@ -395,11 +416,12 @@ Conversion: id, post_id, offer_type[affiliate|store|ads], clicks, orders, revenu
 
 ## 15. Arranque em 48 horas
 
-1. Escolher **1 cluster** de nicho e criar 2 contas faceless (TikTok + Reels)
-2. Cadastrar Shopee Afiliados (+ 1 rede)
-3. Scorecard em 10 produtos → produzir os 2 melhores
-4. 5 hooks × 2 produtos = 10 vídeos
-5. Bio com 1 link; planilha de tracking aberta
-6. Postar; responder CTA; repetir amanhã
+1. Contratar / briefing do **Researcher** (SLA + template de ficha + scorecard)
+2. Escolher **1 cluster** de nicho e criar **2 contas faceless só no TikTok**
+3. Cadastrar Shopee Afiliados (+ 1 rede)
+4. Researcher: scorecard em 10 produtos → liberar os 2 melhores
+5. 5 hooks × 2 produtos = 10 vídeos → postar **apenas no TikTok**
+6. Bio/CTA com 1 link; planilha de tracking aberta
+7. Poster responde CTA; repetir amanhã
 
-Não abra loja nem ads antes da primeira venda orgânica/afiliada.
+Não abrir Reels/Shorts, loja nem ads antes da primeira venda orgânica/afiliada no TikTok.
