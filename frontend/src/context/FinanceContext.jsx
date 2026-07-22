@@ -28,6 +28,11 @@ const emptyState = {
       completedAt: "",
     },
   },
+  budgetRule: {
+    necessidades: 50,
+    desejos: 30,
+    investimentos: 20,
+  },
   budget: {
     necessidades: [],
     desejos: [],
@@ -266,6 +271,15 @@ export function FinanceProvider({ children }) {
     });
   }, []);
 
+  const updateBudgetRule = (patch) =>
+    setState((current) => ({
+      ...current,
+      budgetRule: {
+        ...(current.budgetRule || { necessidades: 50, desejos: 30, investimentos: 20 }),
+        ...patch,
+      },
+    }));
+
   const updateBudgetItem = (category, id, patch) =>
     setState((current) => ({
       ...current,
@@ -411,6 +425,7 @@ export function FinanceProvider({ children }) {
       completeChecklistItem,
       dismissChecklist,
       syncChecklistFromFacts,
+      updateBudgetRule,
       updateBudgetItem,
       addBudgetItem,
       removeBudgetItem,

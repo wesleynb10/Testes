@@ -40,7 +40,7 @@ export function classify(description) {
 
 /**
  * Simple CSV parser (RFC 4180 minimal — no quoted-in-quoted).
- * Supports both , and ; delimiters, auto-detects header row.
+ * Supports , ; and tab delimiters, auto-detects header row.
  */
 export function parseCSV(text) {
   const cleaned = text.replace(/^\uFEFF/, "").trim();
@@ -48,7 +48,12 @@ export function parseCSV(text) {
   if (lines.length === 0) return { rows: [], headers: [] };
 
   const sample = lines[0];
-  const delim = (sample.match(/;/g) || []).length > (sample.match(/,/g) || []).length ? ";" : ",";
+  const counts = {
+    ";": (sample.match(/;/g) || []).length,
+    ",": (sample.match(/,/g) || []).length,
+    "\t": (sample.match(/\t/g) || []).length,
+  };
+  const delim = Object.keys(counts).reduce((a, b) => (counts[b] > counts[a] ? b : a), ",");
 
   const parseLine = (line) => {
     const out = [];
@@ -99,4 +104,106 @@ export function normalizeTransactions({ headers, rows }) {
       };
     })
     .filter((t) => t.description && t.value !== 0);
+}
+
+/** Converte valores numéricos em formato livre (BR/US) para Number. */
+function toNumber(raw) {
+  if (raw === null || raw === undefined) return 0;
+  let s = String(raw).trim();
+  if (!s) return 0;
+  if (s.includes(",") && s.includes(".")) {
+    // O último separador é o decimal.
+    s = s.lastIndexOf(",") > s.lastIndexOf(".")
+      ? s.replace(/\./g, "").replace(",", ".")
+      : s.replace(/,/g, "");
+  } else if (s.includes(",")) {
+    s = s.replace(",", ".");
+  }
+  s = s.replace(/[^\d.-]/g, "");
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+/** Normaliza data OFX/QIF (YYYYMMDD... ou DD/MM/YYYY) para YYYY-MM-DD. */
+function normalizeDate(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  const ofx = s.match(/^(\d{4})(\d{2})(\d{2})/); // 20260115 ou 20260115120000
+  if (ofx) return `${ofx[1]}-${ofx[2]}-${ofx[3]}`;
+  const br = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); // 15/01/2026
+  if (br) {
+    const year = br[3].length === 2 ? `20${br[3]}` : br[3];
+    return `${year}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
+  }
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  return "";
+}
+
+/**
+ * Parser de OFX (Open Financial Exchange) — extratos .ofx/.qfx de bancos.
+ * Formato SGML: blocos <STMTTRN> com <TRNAMT>, <DTPOSTED>, <NAME>/<MEMO>.
+ */
+export function parseOFX(text) {
+  const out = [];
+  const blocks = text.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi) || [];
+  const tag = (block, name) => {
+    const m = block.match(new RegExp(`<${name}>([^<\r\n]*)`, "i"));
+    return m ? m[1].trim() : "";
+  };
+  for (const block of blocks) {
+    const value = toNumber(tag(block, "TRNAMT"));
+    const desc = tag(block, "NAME") || tag(block, "MEMO") || "Lançamento OFX";
+    const date = normalizeDate(tag(block, "DTPOSTED"));
+    if (!value) continue;
+    out.push({ description: desc, value, date, suggestion: classify(desc) });
+  }
+  return out;
+}
+
+/**
+ * Parser de QIF (Quicken Interchange Format).
+ * Linhas: D=data, T/U=valor, P=pagador, M=memo, ^=fim do registro.
+ */
+export function parseQIF(text) {
+  const out = [];
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
+  let cur = {};
+  const push = () => {
+    if (cur.value) {
+      const desc = cur.payee || cur.memo || "Lançamento QIF";
+      out.push({ description: desc, value: cur.value, date: cur.date || "", suggestion: classify(desc) });
+    }
+    cur = {};
+  };
+  for (const line of lines) {
+    if (!line) continue;
+    const code = line[0];
+    const rest = line.slice(1).trim();
+    if (code === "^") push();
+    else if (code === "D") cur.date = normalizeDate(rest);
+    else if (code === "T" || code === "U") cur.value = toNumber(rest);
+    else if (code === "P") cur.payee = rest;
+    else if (code === "M") cur.memo = rest;
+  }
+  push();
+  return out;
+}
+
+/**
+ * Detecta o formato do arquivo (por conteúdo/extensão) e devolve
+ * a lista normalizada de transações. Aceita CSV, TXT, TSV, OFX/QFX e QIF.
+ */
+export function parseStatement(text, filename = "") {
+  const ext = (filename.split(".").pop() || "").toLowerCase();
+  const head = text.slice(0, 400).toUpperCase();
+
+  if (ext === "ofx" || ext === "qfx" || head.includes("<OFX>") || head.includes("<STMTTRN>")) {
+    return parseOFX(text);
+  }
+  if (ext === "qif" || head.trimStart().startsWith("!TYPE")) {
+    return parseQIF(text);
+  }
+  // CSV / TXT / TSV
+  return normalizeTransactions(parseCSV(text));
 }

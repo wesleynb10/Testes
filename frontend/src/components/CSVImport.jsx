@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { parseCSV, normalizeTransactions } from "@/lib/csvImport";
+import { parseStatement } from "@/lib/csvImport";
 import { useFinance } from "@/context/FinanceContext";
 import { brl } from "@/lib/format";
 import { Upload, FileSpreadsheet, Check, X, Sparkles, ChevronRight } from "lucide-react";
@@ -21,18 +21,27 @@ export default function CSVImport({ onClose }) {
 
   const handleFile = async (file) => {
     if (!file) return;
-    const text = await file.text();
-    const parsed = parseCSV(text);
-    const tx = normalizeTransactions(parsed).map((t, i) => ({
-      ...t,
-      id: `tx${i}`,
-      selected: !!t.suggestion,
-      // allow user to override
-      category: t.suggestion?.category || "desejos",
-      subcategory: t.suggestion?.subcategory || "Compras / Lazer",
-    }));
-    setTransactions(tx);
-    setStep("review");
+    setError(null);
+    try {
+      const text = await file.text();
+      const parsed = parseStatement(text, file.name);
+      const tx = parsed.map((t, i) => ({
+        ...t,
+        id: `tx${i}`,
+        selected: !!t.suggestion,
+        // allow user to override
+        category: t.suggestion?.category || "desejos",
+        subcategory: t.suggestion?.subcategory || "Compras / Lazer",
+      }));
+      if (tx.length === 0) {
+        setError("Nenhuma transação encontrada no arquivo. Verifique se é um extrato CSV, TXT, OFX ou QIF válido.");
+        return;
+      }
+      setTransactions(tx);
+      setStep("review");
+    } catch (err) {
+      setError("Não foi possível ler o arquivo. Formatos aceitos: CSV, TXT, TSV, OFX/QFX e QIF.");
+    }
   };
 
   const toggle = (id) =>
@@ -90,7 +99,7 @@ export default function CSVImport({ onClose }) {
             <div>
               <div className="eyebrow">Importar Extrato Bancário</div>
               <div className="font-display text-[20px]" style={{ letterSpacing: "-0.02em" }}>
-                {step === "upload" && "Selecione um arquivo CSV"}
+                {step === "upload" && "Selecione o arquivo do extrato"}
                 {step === "review" && "Revise & categorize"}
                 {step === "done" && "Importação concluída"}
               </div>
@@ -122,19 +131,24 @@ export default function CSVImport({ onClose }) {
             >
               <Upload className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--gold-bright)" }} strokeWidth={1.5} />
               <div className="font-display text-[20px] mb-2" style={{ color: "var(--text-primary)" }}>
-                Arraste seu CSV aqui
+                Arraste seu extrato aqui
               </div>
               <div className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
                 ou clique para selecionar do computador
               </div>
               <div className="text-[11px] mt-4" style={{ color: "var(--text-muted)" }}>
-                Suporta extratos de Nubank, Itaú, Bradesco, Santander, Inter, C6 (formato CSV)
+                Aceita <strong style={{ color: "var(--text-secondary)" }}>CSV, TXT, TSV, OFX/QFX e QIF</strong> — extratos de Nubank, Itaú, Bradesco, Santander, Inter, C6 e outros.
               </div>
+              {error && (
+                <div className="text-[12px] mt-4" style={{ color: "var(--danger)" }} data-testid="csv-upload-error">
+                  {error}
+                </div>
+              )}
               <input
                 data-testid="csv-input"
                 ref={inputRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.txt,.tsv,.ofx,.qfx,.qif,text/csv,text/plain,application/x-ofx"
                 className="hidden"
                 onChange={(e) => handleFile(e.target.files?.[0])}
               />
