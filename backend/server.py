@@ -53,13 +53,20 @@ from financial_state import (
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
-_mongo_kwargs = {"serverSelectionTimeoutMS": 8000}
-# Atlas / TLS connections need a CA bundle — use certifi to avoid macOS SSL errors
-if mongo_url.startswith("mongodb+srv://") or "mongodb.net" in mongo_url or os.environ.get("MONGO_TLS", "").lower() in ("1", "true", "yes"):
-    import certifi
-    _mongo_kwargs["tls"] = True
-    _mongo_kwargs["tlsCAFile"] = certifi.where()
-client = AsyncIOMotorClient(mongo_url, **_mongo_kwargs)
+# USE_MOCK_DB=1 usa um MongoDB em memória (mongomock) — útil só para
+# desenvolvimento/testes locais quando o Atlas não está acessível.
+if os.environ.get("USE_MOCK_DB", "").lower() in ("1", "true", "yes"):
+    from mongomock_motor import AsyncMongoMockClient
+    client = AsyncMongoMockClient()
+    logging.getLogger("server").warning("USE_MOCK_DB ativo — usando MongoDB em memória (dados não persistem).")
+else:
+    _mongo_kwargs = {"serverSelectionTimeoutMS": 8000}
+    # Atlas / TLS connections need a CA bundle — use certifi to avoid macOS SSL errors
+    if mongo_url.startswith("mongodb+srv://") or "mongodb.net" in mongo_url or os.environ.get("MONGO_TLS", "").lower() in ("1", "true", "yes"):
+        import certifi
+        _mongo_kwargs["tls"] = True
+        _mongo_kwargs["tlsCAFile"] = certifi.where()
+    client = AsyncIOMotorClient(mongo_url, **_mongo_kwargs)
 db = client[os.environ['DB_NAME']]
 
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
@@ -125,6 +132,22 @@ class TransactionCreate(BaseModel):
 
 class TransactionBulkCreate(BaseModel):
     transactions: List[TransactionCreate]
+
+class TransactionUpdate(BaseModel):
+    amount: Optional[float] = None
+    category: Optional[str] = None  # necessidades | desejos | investimentos
+    subcategory: Optional[str] = None
+    description: Optional[str] = None
+    payment_method: Optional[str] = None
+    occurred_at: Optional[str] = None
+
+class TransactionUpdate(BaseModel):
+    amount: Optional[float] = None
+    category: Optional[str] = None  # necessidades | desejos | investimentos
+    subcategory: Optional[str] = None
+    description: Optional[str] = None
+    payment_method: Optional[str] = None
+    occurred_at: Optional[str] = None
 
 class FinancialStateUpdate(BaseModel):
     state: Dict[str, Any]
@@ -393,6 +416,93 @@ async def create_transactions_bulk(
             seen.add(key)
             await ensure_transaction_budget_item(db, current, doc)
     return {"created": len(docs), "transactions": docs}
+
+
+@api_router.put("/transactions/{tx_id}")
+async def update_transaction(
+    tx_id: str,
+    payload: TransactionUpdate,
+    current: dict = Depends(get_current_user),
+):
+    existing = await db.transactions.find_one(
+        {"id": tx_id, "user_id": current["id"]}, {"_id": 0}
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Lançamento não encontrado")
+
+    updates: Dict[str, Any] = {}
+    if payload.amount is not None:
+        if payload.amount <= 0:
+            raise HTTPException(status_code=400, detail="O valor deve ser maior que zero")
+        updates["amount"] = float(payload.amount)
+    if payload.category is not None:
+        if payload.category not in ("necessidades", "desejos", "investimentos"):
+            raise HTTPException(status_code=400, detail="Categoria inválida")
+        updates["category"] = payload.category
+    if payload.subcategory is not None:
+        updates["subcategory"] = payload.subcategory.strip() or "Outros"
+    if payload.description is not None:
+        updates["description"] = payload.description.strip() or "Lançamento"
+    if payload.payment_method is not None:
+        updates["payment_method"] = payload.payment_method or None
+    if payload.occurred_at is not None:
+        updates["occurred_at"] = normalize_transaction_date(payload.occurred_at)
+
+    if not updates:
+        return existing
+
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.transactions.update_one(
+        {"id": tx_id, "user_id": current["id"]}, {"$set": updates}
+    )
+    merged = {**existing, **updates}
+    # Garante que a subcategoria (nova ou renomeada) exista no orçamento.
+    await ensure_transaction_budget_item(db, current, merged)
+    return merged
+
+
+@api_router.put("/transactions/{tx_id}")
+async def update_transaction(
+    tx_id: str,
+    payload: TransactionUpdate,
+    current: dict = Depends(get_current_user),
+):
+    existing = await db.transactions.find_one(
+        {"id": tx_id, "user_id": current["id"]}, {"_id": 0}
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Lançamento não encontrado")
+
+    updates: Dict[str, Any] = {}
+    if payload.amount is not None:
+        if payload.amount <= 0:
+            raise HTTPException(status_code=400, detail="O valor deve ser maior que zero")
+        updates["amount"] = float(payload.amount)
+    if payload.category is not None:
+        if payload.category not in ("necessidades", "desejos", "investimentos"):
+            raise HTTPException(status_code=400, detail="Categoria inválida")
+        updates["category"] = payload.category
+    if payload.subcategory is not None:
+        updates["subcategory"] = payload.subcategory.strip() or "Outros"
+    if payload.description is not None:
+        updates["description"] = payload.description.strip() or "Lançamento"
+    if payload.payment_method is not None:
+        updates["payment_method"] = payload.payment_method or None
+    if payload.occurred_at is not None:
+        updates["occurred_at"] = normalize_transaction_date(payload.occurred_at)
+
+    if updates:
+        updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.transactions.update_one(
+            {"id": tx_id, "user_id": current["id"]}, {"$set": updates}
+        )
+
+    doc = await db.transactions.find_one(
+        {"id": tx_id, "user_id": current["id"]}, {"_id": 0}
+    )
+    # Garante que a subcategoria/categoria (nova) exista no orçamento para refletir o real.
+    await ensure_transaction_budget_item(db, current, doc)
+    return doc
 
 
 @api_router.delete("/transactions/{tx_id}")

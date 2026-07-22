@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useAuth, formatApiError } from "@/context/AuthContext";
 import { useFinance } from "@/context/FinanceContext";
 import { brl, stripLeadingZeros } from "@/lib/format";
+import { subcategoriesFor, OTHER_OPTION } from "@/lib/subcategories";
 import {
-  Plus, Loader2, Trash2, MessageCircle, Smartphone, AlertCircle, Receipt,
+  Plus, Loader2, Trash2, MessageCircle, Smartphone, AlertCircle, Receipt, Pencil, X, Check,
 } from "lucide-react";
 
 const CATEGORIES = [
@@ -26,6 +27,63 @@ const PAYMENTS = [
   { id: "dinheiro", label: "Dinheiro" },
 ];
 
+/**
+ * Seletor de subcategoria: dropdown com opções da categoria + "Outra..." que
+ * revela um campo de texto livre para valores personalizados.
+ */
+function SubcategoryField({ category, value, onChange, testId }) {
+  const options = subcategoriesFor(category);
+  const [customMode, setCustomMode] = useState(
+    value !== "" && !options.includes(value)
+  );
+
+  // Ao trocar de categoria, reavalia se o valor atual continua sendo "personalizado".
+  useEffect(() => {
+    setCustomMode(value !== "" && !subcategoriesFor(category).includes(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]);
+
+  const selectValue = customMode
+    ? OTHER_OPTION
+    : options.includes(value)
+    ? value
+    : "";
+
+  return (
+    <>
+      <select
+        data-testid={testId}
+        className="input-premium"
+        value={selectValue}
+        onChange={(e) => {
+          if (e.target.value === OTHER_OPTION) {
+            setCustomMode(true);
+            onChange("");
+          } else {
+            setCustomMode(false);
+            onChange(e.target.value);
+          }
+        }}
+      >
+        <option value="">Selecione...</option>
+        {options.map((o) => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+        <option value={OTHER_OPTION}>+ Outra...</option>
+      </select>
+      {customMode && (
+        <input
+          data-testid={testId ? `${testId}-custom` : undefined}
+          className="input-premium mt-2"
+          placeholder="Digite a subcategoria"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+    </>
+  );
+}
+
 export default function Transactions() {
   const { api } = useAuth();
   const { refreshFinance, completeChecklistItem, syncChecklistFromFacts } = useFinance();
@@ -38,6 +96,12 @@ export default function Transactions() {
   const [form, setForm] = useState({
     amount: "", category: "necessidades", subcategory: "", description: "", payment_method: "",
   });
+
+  // Edição pós-lançamento
+  const [editing, setEditing] = useState(null); // tx sendo editada
+  const [editForm, setEditForm] = useState(null);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -100,7 +164,51 @@ export default function Transactions() {
     }
   };
 
+  const openEdit = (t) => {
+    setEditError(null);
+    setEditing(t);
+    setEditForm({
+      amount: String(t.amount ?? "").replace(".", ","),
+      category: t.category || "necessidades",
+      subcategory: t.subcategory || "",
+      description: t.description || "",
+      payment_method: t.payment_method || "",
+    });
+  };
+
+  const closeEdit = () => {
+    setEditing(null);
+    setEditForm(null);
+    setEditError(null);
+  };
+
+  const saveEdit = async (e) => {
+    e.preventDefault();
+    const amount = parseFloat(String(editForm.amount).replace(",", "."));
+    if (!amount || amount <= 0) { setEditError("Informe um valor válido."); return; }
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      const { data } = await api.put(`/transactions/${editing.id}`, {
+        amount,
+        category: editForm.category,
+        subcategory: editForm.subcategory.trim() || "Outros",
+        description: editForm.description.trim() || "Lançamento",
+        payment_method: editForm.payment_method || null,
+      });
+      setItems((prev) => prev.map((t) => (t.id === editing.id ? { ...t, ...data } : t)));
+      setTotal((current) => current - Number(editing.amount || 0) + amount);
+      closeEdit();
+      await refreshFinance();
+    } catch (err) {
+      setEditError(formatApiError(err.response?.data?.detail) || err.message);
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const setEdit = (k) => (e) => setEditForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
     <div className="p-8 space-y-8" data-testid="transactions-page">
@@ -130,13 +238,18 @@ export default function Transactions() {
           </div>
           <div>
             <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Categoria</label>
-            <select data-testid="tx-category" className="input-premium" value={form.category} onChange={set("category")}>
+            <select data-testid="tx-category" className="input-premium" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value, subcategory: "" }))}>
               {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
           </div>
           <div>
             <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Subcategoria</label>
-            <input data-testid="tx-subcategory" className="input-premium" placeholder="Supermercado" value={form.subcategory} onChange={set("subcategory")} />
+            <SubcategoryField
+              testId="tx-subcategory"
+              category={form.category}
+              value={form.subcategory}
+              onChange={(v) => setForm((f) => ({ ...f, subcategory: v }))}
+            />
           </div>
           <div>
             <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Descrição</label>
@@ -200,6 +313,11 @@ export default function Transactions() {
                   </div>
                 </div>
                 <div className="font-mono-num font-semibold text-[15px]" style={{ color: "var(--text-primary)" }}>{brl(t.amount)}</div>
+                <button onClick={() => openEdit(t)} data-testid="tx-edit"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-lg"
+                  style={{ color: "var(--gold-bright)" }} title="Editar">
+                  <Pencil className="w-4 h-4" />
+                </button>
                 <button onClick={() => remove(t.id)} data-testid="tx-delete"
                   className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-lg"
                   style={{ color: "var(--danger)" }} title="Excluir">
@@ -210,6 +328,81 @@ export default function Transactions() {
           </div>
         )}
       </div>
+
+      {/* Modal de edição pós-lançamento */}
+      {editing && editForm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(7,6,10,0.7)", backdropFilter: "blur(4px)" }}
+          onClick={closeEdit}
+          data-testid="tx-edit-backdrop"
+        >
+          <form
+            onSubmit={saveEdit}
+            onClick={(e) => e.stopPropagation()}
+            className="card-premium p-6 w-full max-w-lg"
+            data-testid="tx-edit-modal"
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div className="kpi-label">Editar lançamento</div>
+              <button type="button" onClick={closeEdit} className="p-1 rounded-lg" style={{ color: "var(--text-muted)" }} data-testid="tx-edit-cancel" title="Fechar">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Valor (R$)</label>
+                <input data-testid="tx-edit-amount" className="input-premium" inputMode="decimal" value={editForm.amount}
+                  onChange={(e) => setEditForm((f) => ({ ...f, amount: stripLeadingZeros(e.target.value) }))} />
+              </div>
+              <div>
+                <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Categoria</label>
+                <select data-testid="tx-edit-category" className="input-premium" value={editForm.category}
+                  onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value, subcategory: "" }))}>
+                  {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Subcategoria</label>
+                <SubcategoryField
+                  testId="tx-edit-subcategory"
+                  category={editForm.category}
+                  value={editForm.subcategory}
+                  onChange={(v) => setEditForm((f) => ({ ...f, subcategory: v }))}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Pagamento</label>
+                <select data-testid="tx-edit-payment" className="input-premium" value={editForm.payment_method} onChange={setEdit("payment_method")}>
+                  {PAYMENTS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Descrição</label>
+                <input data-testid="tx-edit-description" className="input-premium" value={editForm.description} onChange={setEdit("description")} />
+              </div>
+            </div>
+
+            {editError && (
+              <div className="mt-4 p-3 rounded-lg flex items-start gap-2 text-[13px]" style={{ background: "rgba(212,106,106,0.08)", border: "1px solid rgba(212,106,106,0.3)", color: "var(--danger)" }} data-testid="tx-edit-error">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button type="button" onClick={closeEdit} className="btn-ghost" style={{ padding: "10px 18px", fontSize: 14 }}>
+                Cancelar
+              </button>
+              <button type="submit" disabled={editBusy} className="btn-gold" data-testid="tx-edit-save"
+                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 20px", fontSize: 14, opacity: editBusy ? 0.6 : 1 }}>
+                {editBusy ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</> : <><Check className="w-4 h-4" /> Salvar</>}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

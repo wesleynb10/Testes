@@ -129,6 +129,34 @@ def normalize_expense_description(raw: str) -> str:
     return text[:1].upper() + text[1:]
 
 
+FORMA_LABEL = {
+    "debito": "débito",
+    "credito": "crédito",
+    "pix": "Pix",
+    "dinheiro": "dinheiro",
+}
+
+
+def detectar_forma_pagamento(text: str) -> Optional[str]:
+    """Extrai a forma de pagamento de um texto livre (débito/crédito/pix/dinheiro)."""
+    lower = (text or "").lower()
+    # Débito antes de crédito para "cartão de débito" não cair em crédito.
+    if "déb" in lower or "debito" in lower:
+        return "debito"
+    if (
+        "créd" in lower
+        or "credito" in lower
+        or "cartão" in lower
+        or "cartao" in lower
+    ):
+        return "credito"
+    if "pix" in lower:
+        return "pix"
+    if "dinheiro" in lower or "espécie" in lower or "especie" in lower or "cash" in lower:
+        return "dinheiro"
+    return None
+
+
 def enviar_para_emergent_ai(texto: str) -> Dict[str, Any]:
     """
     Placeholder do agente inteligente Emergent AI.
@@ -191,15 +219,7 @@ def enviar_para_emergent_ai(texto: str) -> Dict[str, Any]:
         categoria = "desejos"
         subcategoria = "Restaurantes"
 
-    forma = None
-    if "débito" in lower or "debito" in lower:
-        forma = "debito"
-    elif "crédito" in lower or "credito" in lower:
-        forma = "credito"
-    elif "pix" in lower:
-        forma = "pix"
-    elif "dinheiro" in lower:
-        forma = "dinheiro"
+    forma = detectar_forma_pagamento(raw)
 
     descricao = normalize_expense_description(raw)
 
@@ -304,19 +324,78 @@ async def _latest_pending(db: AsyncIOMotorDatabase, user_id: str) -> Optional[di
     )
 
 
-async def _handle_confirmation(
+def _resumo(parsed: Dict[str, Any]) -> str:
+    """Resumo curto de um lançamento para mensagens do WhatsApp."""
+    value = f"R$ {float(parsed.get('valor') or 0):.2f}".replace(".", ",")
+    forma = parsed.get("forma_pagamento")
+    forma_txt = f" · {FORMA_LABEL.get(forma, forma)}" if forma else ""
+    return (
+        f"{parsed.get('descricao') or 'Lançamento'} — {value} "
+        f"({parsed.get('categoria')}/{parsed.get('subcategoria')}){forma_txt}"
+    )
+
+
+def _prompt_for_stage(pending: Dict[str, Any]) -> Response:
+    """Mensagem a enviar conforme o estágio do lançamento pendente."""
+    parsed = pending.get("parsed", {})
+    if pending.get("stage") == "awaiting_payment":
+        return twiml_message(
+            f"Entendi: {_resumo(parsed)}.\n"
+            "Qual foi a forma de pagamento? Responda: débito, crédito, pix ou dinheiro."
+        )
+    return twiml_message(
+        f"Confirmar lançamento?\n{_resumo(parsed)}.\n"
+        "Responda SIM para confirmar ou NÃO para cancelar."
+    )
+
+
+async def _start_pending_flow(
     db: AsyncIOMotorDatabase,
     user: dict,
     phone: str,
-    body: str,
+    parsed: Dict[str, Any],
+    *,
+    source: str,
+    raw_body: str = "",
+    caption: Optional[str] = None,
+    image_fingerprint: Optional[str] = None,
+) -> Response:
+    """
+    Cria um lançamento pendente e pergunta a forma de pagamento (se faltar)
+    ou pede confirmação. Nada é gravado em `transactions` antes do SIM.
+    """
+    now = datetime.now(timezone.utc)
+    stage = "awaiting_confirmation" if parsed.get("forma_pagamento") else "awaiting_payment"
+    pending = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "user_email": user.get("email"),
+        "phone": phone,
+        "status": "pending",
+        "stage": stage,
+        "source": source,
+        "raw_body": (raw_body or "")[:500],
+        "caption": (caption or "")[:300],
+        "parsed": parsed,
+        "created_at": now.isoformat(),
+        "expires_at": (now + timedelta(minutes=30)).isoformat(),
+    }
+    if image_fingerprint:
+        pending["image_fingerprint"] = image_fingerprint
+    await db.pending_transactions.insert_one(pending)
+    pending.pop("_id", None)
+    return _prompt_for_stage(pending)
+
+
+async def _finalize_pending(
+    db: AsyncIOMotorDatabase,
+    user: dict,
+    phone: str,
+    pending: Dict[str, Any],
+    *,
     confirmed: bool,
 ) -> Response:
-    pending = await _latest_pending(db, user["id"])
-    if not pending:
-        return twiml_message(
-            "Não encontrei nenhum comprovante aguardando confirmação. Envie uma nova foto ou PDF."
-        )
-
+    """Confirma (grava) ou cancela um lançamento pendente."""
     if not confirmed:
         await db.pending_transactions.update_one(
             {"id": pending["id"], "status": "pending"},
@@ -327,7 +406,7 @@ async def _handle_confirmation(
                 }
             },
         )
-        return twiml_message("Comprovante cancelado. Nenhum lançamento foi criado.")
+        return twiml_message("Lançamento cancelado. Nada foi registrado.")
 
     claimed = await db.pending_transactions.find_one_and_update(
         {"id": pending["id"], "status": "pending"},
@@ -340,25 +419,27 @@ async def _handle_confirmation(
         return_document=ReturnDocument.AFTER,
     )
     if not claimed:
-        return twiml_message("Este comprovante já foi processado.")
+        return twiml_message("Este lançamento já foi processado.")
 
     try:
         tx = await salvar_transacao(
             db,
             user,
             phone,
-            claimed.get("caption") or "Foto de comprovante",
+            claimed.get("raw_body") or claimed.get("caption") or "Lançamento WhatsApp",
             claimed["parsed"],
-            source="whatsapp_image",
+            source=claimed.get("source", "whatsapp"),
         )
         await db.pending_transactions.update_one(
             {"id": claimed["id"]},
             {"$set": {"status": "confirmed", "transaction_id": tx["id"]}},
         )
         value = f"R$ {tx['amount']:.2f}".replace(".", ",")
+        forma = tx.get("payment_method")
+        forma_txt = f" · {FORMA_LABEL.get(forma, forma)}" if forma else ""
         return twiml_message(
-            f"Comprovante confirmado! {tx['description']} — {value} "
-            f"({tx['category']}/{tx['subcategory']})."
+            f"Lançamento confirmado! {tx['description']} — {value} "
+            f"({tx['category']}/{tx['subcategory']}){forma_txt}."
         )
     except Exception:
         await db.pending_transactions.update_one(
@@ -366,6 +447,46 @@ async def _handle_confirmation(
             {"$set": {"status": "pending"}, "$unset": {"resolved_at": ""}},
         )
         raise
+
+
+async def _advance_pending(
+    db: AsyncIOMotorDatabase,
+    user: dict,
+    phone: str,
+    pending: Dict[str, Any],
+    body: str,
+) -> Response:
+    """
+    Faz o lançamento pendente avançar conforme a resposta do usuário:
+      - awaiting_payment: interpreta a forma de pagamento (ou cancela).
+      - awaiting_confirmation: interpreta SIM/NÃO.
+    """
+    intent = _confirmation_intent(body)
+
+    if pending.get("stage") == "awaiting_payment":
+        if intent is False:
+            return await _finalize_pending(db, user, phone, pending, confirmed=False)
+        forma = detectar_forma_pagamento(body)
+        if not forma:
+            return twiml_message(
+                "Não entendi a forma de pagamento. Responda: débito, crédito, pix ou dinheiro "
+                "(ou responda NÃO para cancelar)."
+            )
+        new_parsed = {**pending.get("parsed", {}), "forma_pagamento": forma}
+        await db.pending_transactions.update_one(
+            {"id": pending["id"], "status": "pending"},
+            {"$set": {"parsed": new_parsed, "stage": "awaiting_confirmation"}},
+        )
+        pending = {**pending, "parsed": new_parsed, "stage": "awaiting_confirmation"}
+        return _prompt_for_stage(pending)
+
+    # awaiting_confirmation (padrão)
+    if intent is None:
+        return twiml_message(
+            f"Ainda não confirmei este lançamento:\n{_resumo(pending.get('parsed', {}))}.\n"
+            "Responda SIM para confirmar ou NÃO para cancelar."
+        )
+    return await _finalize_pending(db, user, phone, pending, confirmed=intent)
 
 
 async def _handle_audio_media(
@@ -379,11 +500,11 @@ async def _handle_audio_media(
     transcript = await transcribe_audio_media(media, media_type)
     logger.info(f"[twilio] audio transcript from={phone}: {transcript[:160]!r}")
 
-    confirmation = _confirmation_intent(transcript)
-    if confirmation is not None:
-        return await _handle_confirmation(
-            db, user, phone, transcript, confirmed=confirmation
-        )
+    # Se há um lançamento aguardando (forma de pagamento ou confirmação),
+    # o áudio responde a essa etapa (ex.: "pix", "sim", "não").
+    pending = await _latest_pending(db, user["id"])
+    if pending:
+        return await _advance_pending(db, user, phone, pending, transcript)
 
     try:
         parsed = await parse_spoken_expense(transcript)
@@ -397,18 +518,8 @@ async def _handle_audio_media(
             'Tente de novo, por exemplo: "Gastei R$ 42,50 numa pizza no débito".'
         )
 
-    tx = await salvar_transacao(
-        db,
-        user,
-        phone,
-        transcript,
-        parsed,
-        source="whatsapp_audio",
-    )
-    valor_fmt = f"R$ {tx['amount']:.2f}".replace(".", ",")
-    return twiml_message(
-        f"Áudio entendido. Lançamento: {tx['description']} — {valor_fmt} "
-        f"({tx['category']}/{tx['subcategory']})."
+    return await _start_pending_flow(
+        db, user, phone, parsed, source="whatsapp_audio", raw_body=transcript
     )
 
 
@@ -438,28 +549,15 @@ async def _handle_receipt_media(
         )
 
     parsed = await analyze_receipt_media(media, media_type, caption)
-    now = datetime.now(timezone.utc)
-    pending = {
-        "id": str(uuid.uuid4()),
-        "user_id": user["id"],
-        "user_email": user.get("email"),
-        "phone": phone,
-        "status": "pending",
-        "caption": caption[:300],
-        "media_type": media_type,
-        "image_fingerprint": fingerprint,
-        "parsed": parsed,
-        "created_at": now.isoformat(),
-        "expires_at": (now + timedelta(minutes=30)).isoformat(),
-    }
-    await db.pending_transactions.insert_one(pending)
-
-    value = f"R$ {parsed['valor']:.2f}".replace(".", ",")
-    date_text = f", data {parsed['data']}" if parsed.get("data") else ""
-    return twiml_message(
-        f"Identifiquei: {parsed['descricao']} — {value}{date_text} "
-        f"({parsed['categoria']}/{parsed['subcategoria']}). "
-        "Responda SIM para confirmar ou NÃO para cancelar."
+    return await _start_pending_flow(
+        db,
+        user,
+        phone,
+        parsed,
+        source="whatsapp_image",
+        raw_body=caption or "Foto de comprovante",
+        caption=caption,
+        image_fingerprint=fingerprint,
     )
 
 
@@ -545,11 +643,11 @@ async def twilio_whatsapp_webhook(
                 "Você também pode escrever: Almoço R$ 42,50 no débito"
             )
 
-        confirmation = _confirmation_intent(body)
-        if confirmation is not None:
-            return await _handle_confirmation(
-                db, user, phone, body, confirmed=confirmation
-            )
+        # Se já existe um lançamento aguardando resposta (forma de pagamento
+        # ou confirmação), o texto atual responde a essa etapa.
+        pending = await _latest_pending(db, user["id"])
+        if pending:
+            return await _advance_pending(db, user, phone, pending, body)
 
         if not body:
             return twiml_message(
@@ -558,15 +656,19 @@ async def twilio_whatsapp_webhook(
             )
 
         parsed = enviar_para_emergent_ai(body)
-        tx = await salvar_transacao(db, user, phone, body, parsed)
+        if float(parsed.get("valor") or 0) <= 0:
+            return twiml_message(
+                "Não identifiquei um valor na mensagem. "
+                'Tente por exemplo: "Almoço R$ 42,50 no débito".'
+            )
         logger.info(
-            f"[twilio] saved tx={tx['id']} user={user.get('email')} "
-            f"amount={tx['amount']} cat={tx['category']}"
+            f"[twilio] pending tx user={user.get('email')} "
+            f"amount={parsed.get('valor')} cat={parsed.get('categoria')} "
+            f"forma={parsed.get('forma_pagamento')}"
         )
-        valor_fmt = f"R$ {tx['amount']:.2f}".replace(".", ",")
-        return twiml_message(
-            f"Lançamento realizado com sucesso! "
-            f"{tx['description']} — {valor_fmt} ({tx['category']}/{tx['subcategory']})."
+        # Nada é gravado ainda: pede forma de pagamento (se faltar) e confirmação.
+        return await _start_pending_flow(
+            db, user, phone, parsed, source="whatsapp", raw_body=body
         )
     except AudioTranscriptionError as e:
         logger.warning(f"[twilio] audio rejected from={phone}: {e}")
