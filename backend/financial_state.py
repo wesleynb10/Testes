@@ -71,6 +71,8 @@ def default_financial_state(name: str = "Investidor") -> Dict[str, Any]:
             "primaryGoal": "",
             "firstWeekChecklist": default_first_week_checklist(),
         },
+        # Regra de orçamento (percentuais alvo por categoria). Padrão 50/30/20.
+        "budgetRule": {"necessidades": 50.0, "desejos": 30.0, "investimentos": 20.0},
         "budget": {
             "necessidades": items(
                 "n",
@@ -193,8 +195,20 @@ def clean_financial_state(raw: Any, fallback_name: str = "Investidor") -> Dict[s
         "currentInvested": max(0.0, _number(fire_raw.get("currentInvested"))),
     }
 
+    rule_raw = source.get("budgetRule") if isinstance(source.get("budgetRule"), dict) else {}
+
+    def _clamp_pct(value: Any, default: float) -> float:
+        return max(0.0, min(100.0, _number(value, default)))
+
+    budget_rule = {
+        "necessidades": _clamp_pct(rule_raw.get("necessidades"), 50.0),
+        "desejos": _clamp_pct(rule_raw.get("desejos"), 30.0),
+        "investimentos": _clamp_pct(rule_raw.get("investimentos"), 20.0),
+    }
+
     return {
         "profile": profile,
+        "budgetRule": budget_rule,
         "budget": budget,
         "debts": debts,
         "goals": goals,
