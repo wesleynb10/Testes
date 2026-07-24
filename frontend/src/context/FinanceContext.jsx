@@ -94,7 +94,10 @@ function readLegacyState() {
 export function FinanceProvider({ children }) {
   const { user, api } = useAuth();
   const [state, setState] = useState(cloneEmptyState);
-  const [loading, setLoading] = useState(false);
+  // Começa "carregando" para evitar uma corrida em deep-links autenticados
+  // (ex.: retorno do pagamento em /app/credito?order_id=...): sem isso o guard
+  // de onboarding leria o estado vazio inicial e redirecionaria, perdendo a URL.
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [lastSavedAt, setLastSavedAt] = useState(null);
@@ -145,6 +148,12 @@ export function FinanceProvider({ children }) {
   useEffect(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
 
+    // user === null → auth ainda verificando a sessão. Mantém "loading" para o
+    // guard de onboarding aguardar (evita redirecionar em deep-links autenticados).
+    if (user === null) {
+      return;
+    }
+
     if (!authenticatedUserId) {
       loadedUserRef.current = null;
       skipNextSaveRef.current = true;
@@ -155,7 +164,7 @@ export function FinanceProvider({ children }) {
     }
 
     refreshFinance().catch(() => {});
-  }, [authenticatedUserId, refreshFinance]);
+  }, [user, authenticatedUserId, refreshFinance]);
 
   useEffect(() => {
     if (!authenticatedUserId || loadedUserRef.current !== authenticatedUserId) return;
