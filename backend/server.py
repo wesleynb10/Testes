@@ -50,6 +50,16 @@ from financial_state import (
     save_financial_state,
 )
 
+from credit_provider import (
+    CreditProviderError,
+    decrypt_documento,
+    encrypt_documento,
+    gerar_relatorio,
+    hash_documento,
+    mask_documento,
+    valida_documento,
+)
+
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -70,6 +80,17 @@ else:
 db = client[os.environ['DB_NAME']]
 
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
+
+# Análise de Crédito (serviço avulso pago) — preço e retenção do relatório.
+try:
+    CREDIT_REPORT_PRICE_BRL = round(float(os.environ.get('CREDIT_REPORT_PRICE_BRL', '39.90')), 2)
+except ValueError:
+    CREDIT_REPORT_PRICE_BRL = 39.90
+try:
+    CREDIT_REPORT_RETENTION_DAYS = int(os.environ.get('CREDIT_REPORT_RETENTION_DAYS', '90'))
+except ValueError:
+    CREDIT_REPORT_RETENTION_DAYS = 90
+CREDIT_CONSENT_VERSION = os.environ.get('CREDIT_CONSENT_VERSION', 'v1')
 
 app = FastAPI()
 app.state.db = db
@@ -151,6 +172,13 @@ class TransactionUpdate(BaseModel):
 
 class FinancialStateUpdate(BaseModel):
     state: Dict[str, Any]
+
+
+class CreditCheckoutRequest(BaseModel):
+    documento: str                       # CPF ou CNPJ (com ou sem máscara)
+    origin_url: str
+    consent: bool = False                # aceite explícito do titular (LGPD)
+    consent_text_version: Optional[str] = None
 
 
 def normalize_transaction_date(value: Optional[str]) -> Optional[str]:
@@ -745,10 +773,278 @@ async def stripe_webhook(request: Request):
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }},
             )
+        # Análise de crédito: dispara a geração do relatório assim que o Pix é pago.
+        if event.session_id:
+            try:
+                await _process_credit_session(
+                    event.session_id, paid=event.payment_status == "paid"
+                )
+            except Exception as e:  # nunca derrubar o webhook por causa do crédito
+                logging.warning(f"Credit webhook processing failed: {e}")
         return {"received": True}
     except Exception as e:
         logging.error(f"Webhook error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# =============================================================================
+# ANÁLISE DE CRÉDITO (serviço avulso pago via Pix/Stripe + Direct Data)
+# =============================================================================
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("X-Forwarded-For", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _credit_order_public(order: dict) -> dict:
+    """Projeção segura do pedido (nunca expõe documento em claro/cifrado)."""
+    return {
+        "order_id": order.get("id"),
+        "documento": order.get("documento_masked"),
+        "tipo": order.get("tipo"),
+        "status": order.get("status"),
+        "payment_status": order.get("payment", {}).get("status"),
+        "report_ready": order.get("status") == "ready",
+        "report_id": order.get("report_id"),
+        "price": order.get("amount"),
+        "currency": order.get("currency", "brl"),
+        "error": order.get("error"),
+        "created_at": order.get("created_at"),
+        "updated_at": order.get("updated_at"),
+    }
+
+
+async def _generate_credit_report(order_id: str) -> None:
+    """Gera o relatório na Direct Data — idempotente (uma vez por pedido pago).
+
+    Só chamada após pagamento confirmado. Usa claim atômico (paid -> processing)
+    para evitar gerar/cobrar crédito duas vezes pelo mesmo pagamento.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    claimed = await db.credit_orders.find_one_and_update(
+        {"id": order_id, "status": "paid", "report_id": None},
+        {"$set": {"status": "processing", "updated_at": now}},
+    )
+    if not claimed:
+        return  # já em processamento, pronto, ou não pago ainda
+
+    try:
+        documento = decrypt_documento(claimed["documento_enc"])
+    except Exception:
+        await db.credit_orders.update_one(
+            {"id": order_id},
+            {"$set": {"status": "error", "error": "Não foi possível recuperar o documento.",
+                      "updated_at": datetime.now(timezone.utc).isoformat()},
+             "$unset": {"documento_enc": ""}},
+        )
+        return
+
+    try:
+        report = await gerar_relatorio(documento, claimed.get("tipo"))
+    except CreditProviderError as exc:
+        logging.warning(f"Credit report generation failed (order {order_id}): {exc}")
+        await db.credit_orders.update_one(
+            {"id": order_id},
+            {"$set": {"status": "error", "error": str(exc),
+                      "updated_at": datetime.now(timezone.utc).isoformat()},
+             "$unset": {"documento_enc": ""}},
+        )
+        return
+    except Exception as exc:
+        logging.exception(f"Unexpected credit report error (order {order_id})")
+        await db.credit_orders.update_one(
+            {"id": order_id},
+            {"$set": {"status": "error", "error": "Falha inesperada ao gerar o relatório.",
+                      "updated_at": datetime.now(timezone.utc).isoformat()},
+             "$unset": {"documento_enc": ""}},
+        )
+        return
+
+    created_at = datetime.now(timezone.utc)
+    expires_at = created_at + timedelta_days(CREDIT_REPORT_RETENTION_DAYS)
+    report_id = str(uuid.uuid4())
+    report_doc = {
+        "id": report_id,
+        "order_id": order_id,
+        "user_id": claimed.get("user_id"),
+        "payload_normalizado": report.model_dump(),
+        "provider_meta": {"fonte": report.fonte},
+        "comprovante_url": report.comprovante_url,
+        "created_at": created_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
+    }
+    await db.credit_reports.insert_one(report_doc)
+    # Documento em claro deixa de ser necessário: apagamos a versão cifrada (LGPD).
+    await db.credit_orders.update_one(
+        {"id": order_id},
+        {"$set": {"status": "ready", "report_id": report_id, "error": None,
+                  "updated_at": datetime.now(timezone.utc).isoformat()},
+         "$unset": {"documento_enc": ""}},
+    )
+
+
+async def _process_credit_session(session_id: str, paid: bool) -> Optional[dict]:
+    """Reconciliação de pagamento de um pedido de crédito por session_id."""
+    order = await db.credit_orders.find_one({"payment.session_id": session_id})
+    if not order:
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    if paid and order.get("status") in ("pending", "paid"):
+        await db.credit_orders.update_one(
+            {"id": order["id"], "status": "pending"},
+            {"$set": {"status": "paid", "payment.status": "paid", "updated_at": now}},
+        )
+        await _generate_credit_report(order["id"])
+    elif not paid:
+        await db.credit_orders.update_one(
+            {"id": order["id"]},
+            {"$set": {"payment.status": "pending", "updated_at": now}},
+        )
+    return await db.credit_orders.find_one({"id": order["id"]})
+
+
+@api_router.post("/credit/checkout")
+async def create_credit_checkout(
+    payload: CreditCheckoutRequest,
+    request: Request,
+    current: dict = Depends(get_current_user),
+):
+    # 1) Consentimento LGPD é obrigatório antes de qualquer coisa.
+    if not payload.consent:
+        raise HTTPException(
+            status_code=400,
+            detail="É necessário aceitar o termo de consentimento para consultar seus dados.",
+        )
+    # 2) Valida CPF/CNPJ (dígitos verificadores) ANTES de gastar crédito.
+    try:
+        tipo = valida_documento(payload.documento)
+    except CreditProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if not (STRIPE_API_KEY or "").strip():
+        raise HTTPException(
+            status_code=503,
+            detail="Pagamentos temporariamente indisponíveis. O Stripe ainda não está configurado.",
+        )
+
+    origin = payload.origin_url.rstrip("/")
+    order_id = str(uuid.uuid4())
+    success_url = f"{origin}/app/credito?order_id={order_id}&session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{origin}/app/credito?canceled=1"
+
+    host_url = str(request.base_url)
+    webhook_url = f"{host_url.rstrip('/')}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+
+    metadata = {
+        "type": "credit",
+        "order_id": order_id,
+        "email": (current.get("email") or "").lower().strip(),
+        "source": "analise_credito",
+    }
+    checkout_request = CheckoutSessionRequest(
+        amount=float(CREDIT_REPORT_PRICE_BRL),
+        currency="brl",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata=metadata,
+    )
+    try:
+        session: CheckoutSessionResponse = await stripe_checkout.create_checkout_session(checkout_request)
+    except Exception as exc:
+        logging.warning(f"Credit checkout session error: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail="Pagamentos temporariamente indisponíveis. Tente novamente em breve.",
+        ) from exc
+
+    now = datetime.now(timezone.utc).isoformat()
+    order = {
+        "id": order_id,
+        "user_id": current.get("id"),
+        "user_email": current.get("email"),
+        "documento_masked": mask_documento(payload.documento),
+        "documento_hash": hash_documento(payload.documento),
+        "documento_enc": encrypt_documento(payload.documento),
+        "tipo": tipo,
+        "amount": float(CREDIT_REPORT_PRICE_BRL),
+        "currency": "brl",
+        "consent": {
+            "aceito": True,
+            "texto_versao": payload.consent_text_version or CREDIT_CONSENT_VERSION,
+            "ip": _client_ip(request),
+            "user_agent": request.headers.get("User-Agent", "")[:400],
+            "timestamp": now,
+        },
+        "payment": {"provider": "stripe", "session_id": session.session_id, "status": "pending"},
+        "status": "pending",
+        "report_id": None,
+        "error": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.credit_orders.insert_one(order)
+    logging.info(
+        "Credit order criada order=%s user=%s doc=%s tipo=%s",
+        order_id, current.get("id"), order["documento_masked"], tipo,
+    )
+    return {"url": session.url, "session_id": session.session_id, "order_id": order_id}
+
+
+@api_router.get("/credit/status/{order_id}")
+async def get_credit_status(order_id: str, current: dict = Depends(get_current_user)):
+    order = await db.credit_orders.find_one({"id": order_id})
+    if not order or order.get("user_id") != current.get("id"):
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+
+    # Se ainda não está finalizado, reconcilia o pagamento com o Stripe (fallback
+    # ao webhook) e dispara a geração do relatório quando confirmado o pagamento.
+    if order.get("status") in ("pending", "paid", "processing"):
+        session_id = order.get("payment", {}).get("session_id")
+        if session_id and order.get("status") in ("pending", "paid"):
+            try:
+                stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url="")
+                status: CheckoutStatusResponse = await stripe_checkout.get_checkout_status(session_id)
+                refreshed = await _process_credit_session(
+                    session_id, paid=status.payment_status == "paid"
+                )
+                if refreshed:
+                    order = refreshed
+            except HTTPException:
+                raise
+            except Exception as e:
+                logging.warning(f"Credit status reconcile failed for {order_id}: {e}")
+
+    return _credit_order_public(order)
+
+
+@api_router.get("/credit/report/{order_id}")
+async def get_credit_report(order_id: str, current: dict = Depends(get_current_user)):
+    order = await db.credit_orders.find_one({"id": order_id})
+    if not order or order.get("user_id") != current.get("id"):
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if order.get("status") != "ready" or not order.get("report_id"):
+        raise HTTPException(status_code=409, detail="Relatório ainda não está disponível")
+
+    report = await db.credit_reports.find_one({"id": order["report_id"]}, {"_id": 0})
+    if not report:
+        raise HTTPException(status_code=404, detail="Relatório não encontrado")
+    return {
+        "order": _credit_order_public(order),
+        "report": report.get("payload_normalizado", {}),
+        "comprovante_url": report.get("comprovante_url"),
+        "expires_at": report.get("expires_at"),
+    }
+
+
+@api_router.get("/credit/price")
+async def get_credit_price():
+    return {
+        "price": float(CREDIT_REPORT_PRICE_BRL),
+        "currency": "brl",
+        "consent_version": CREDIT_CONSENT_VERSION,
+    }
 
 
 @api_router.post("/test/email")
@@ -909,6 +1205,13 @@ async def startup():
         await db.email_queue.create_index("lead_email")
         await ensure_twilio_indexes(db)
         await ensure_financial_indexes(db)
+        # Análise de crédito
+        await db.credit_orders.create_index("id", unique=True)
+        await db.credit_orders.create_index("user_id")
+        await db.credit_orders.create_index("payment.session_id")
+        await db.credit_orders.create_index("documento_hash")
+        await db.credit_reports.create_index("id", unique=True)
+        await db.credit_reports.create_index("order_id")
         # Launch background drip worker
         import asyncio as _asyncio
         _asyncio.create_task(drip_worker_loop(db, interval_seconds=60))

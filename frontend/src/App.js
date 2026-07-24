@@ -10,6 +10,7 @@ import Dashboard from "@/pages/Dashboard";
 import Budget from "@/pages/Budget";
 import Debts from "@/pages/Debts";
 import Goals from "@/pages/Goals";
+import AnaliseCredito from "@/pages/AnaliseCredito";
 import Bonus from "@/pages/Bonus";
 import Scope from "@/pages/Scope";
 import Transactions from "@/pages/Transactions";
@@ -65,6 +66,7 @@ function App() {
               <Route path="/app/orcamento" element={<RequireAuth><RequireOnboarding><Budget /></RequireOnboarding></RequireAuth>} />
               <Route path="/app/dividas" element={<RequireAuth><RequireOnboarding><Debts /></RequireOnboarding></RequireAuth>} />
               <Route path="/app/metas" element={<RequireAuth><RequireOnboarding><Goals /></RequireOnboarding></RequireAuth>} />
+              <Route path="/app/credito" element={<RequireAuth><RequireOnboarding><AnaliseCredito /></RequireOnboarding></RequireAuth>} />
               <Route path="/app/escopo" element={<RequireAuth><RequireOnboarding><Scope /></RequireOnboarding></RequireAuth>} />
 
               {/* ---------- Admin (dono) ---------- */}
