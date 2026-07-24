@@ -5,6 +5,7 @@ import {
   Wallet,
   TrendingDown,
   Target,
+  LineChart,
   FileText,
   Receipt,
   Gem,
@@ -21,6 +22,7 @@ const items = [
   { to: "/app/dividas", label: "Controle de Dívidas", icon: TrendingDown, id: "nav-dividas" },
   { to: "/app/metas", label: "Metas & Liberdade", icon: Target, id: "nav-metas" },
   { to: "/app/credito", label: "Análise de Crédito", icon: ShieldCheck, id: "nav-credito" },
+  { to: "/app/projecao", label: "Projeção de Caixa", icon: LineChart, id: "nav-projecao" },
   { to: "/app/escopo", label: "Escopo do Produto", icon: FileText, id: "nav-escopo" },
 ];
 

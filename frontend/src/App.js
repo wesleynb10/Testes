@@ -11,6 +11,7 @@ import Budget from "@/pages/Budget";
 import Debts from "@/pages/Debts";
 import Goals from "@/pages/Goals";
 import AnaliseCredito from "@/pages/AnaliseCredito";
+import Projection from "@/pages/Projection";
 import Bonus from "@/pages/Bonus";
 import Scope from "@/pages/Scope";
 import Transactions from "@/pages/Transactions";
@@ -67,6 +68,7 @@ function App() {
               <Route path="/app/dividas" element={<RequireAuth><RequireOnboarding><Debts /></RequireOnboarding></RequireAuth>} />
               <Route path="/app/metas" element={<RequireAuth><RequireOnboarding><Goals /></RequireOnboarding></RequireAuth>} />
               <Route path="/app/credito" element={<RequireAuth><RequireOnboarding><AnaliseCredito /></RequireOnboarding></RequireAuth>} />
+              <Route path="/app/projecao" element={<RequireAuth><RequireOnboarding><Projection /></RequireOnboarding></RequireAuth>} />
               <Route path="/app/escopo" element={<RequireAuth><RequireOnboarding><Scope /></RequireOnboarding></RequireAuth>} />
 
               {/* ---------- Admin (dono) ---------- */}
@@ -77,6 +79,7 @@ function App() {
               <Route path="/orcamento" element={<Navigate to="/app/orcamento" replace />} />
               <Route path="/dividas" element={<Navigate to="/app/dividas" replace />} />
               <Route path="/metas" element={<Navigate to="/app/metas" replace />} />
+              <Route path="/projecao" element={<Navigate to="/app/projecao" replace />} />
               <Route path="/escopo" element={<Navigate to="/app/escopo" replace />} />
               <Route path="/dashboard" element={<Navigate to="/app" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />

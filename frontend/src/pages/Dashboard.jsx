@@ -311,11 +311,20 @@ export default function Dashboard() {
 
         {/* Evolução patrimonial */}
         <div className="card-premium p-6 xl:col-span-2" data-testid="chart-evolucao">
-          <div className="flex items-start justify-between mb-4">
+          <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
             <div>
               <div className="kpi-label mb-1">Evolução dos últimos 6 meses</div>
-              <div className="font-display text-[22px]" style={{ letterSpacing: "-0.02em" }}>
+              <div className="font-display text-[22px] flex items-center gap-3 flex-wrap" style={{ letterSpacing: "-0.02em" }}>
                 Fluxo de caixa
+                <button
+                  type="button"
+                  onClick={() => nav("/app/projecao")}
+                  data-testid="dashboard-projection-cta"
+                  className="chip gold"
+                  style={{ cursor: "pointer" }}
+                >
+                  Ver projeção pra frente <ArrowUpRight className="w-3 h-3" />
+                </button>
               </div>
             </div>
             <div className="flex gap-4 text-[11px]">
