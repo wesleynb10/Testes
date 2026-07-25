@@ -5,6 +5,7 @@ relatório após pagamento, a idempotência e o controle de acesso por usuário.
 """
 import asyncio
 import os
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -61,7 +62,7 @@ def test_generate_report_after_payment_and_scrub_documento():
 
         report = await server.db.credit_reports.find_one({"id": order["report_id"]})
         assert report["payload_normalizado"]["score"] == 742
-        assert report["payload_normalizado"]["rating_bacen"] == "C"
+        assert report["payload_normalizado"]["rating_bacen"] == "B"
         assert report["expires_at"]
 
     asyncio.run(run())
@@ -97,6 +98,45 @@ def test_get_report_requires_ownership():
     asyncio.run(run())
 
 
+def test_report_grava_expiracao_como_date_para_o_ttl():
+    async def run():
+        await _reset()
+        await server.db.credit_orders.insert_one(_make_order())
+        await server._generate_credit_report("order-1")
+
+        order = await server.db.credit_orders.find_one({"id": "order-1"})
+        report = await server.db.credit_reports.find_one({"id": order["report_id"]})
+        # O índice TTL só age sobre BSON Date; a string ISO é só para a API.
+        assert isinstance(report["expires_at_dt"], datetime)
+        assert isinstance(report["expires_at"], str)
+        # BSON não guarda timezone (driver devolve naive em UTC) e trunca em
+        # milissegundos — daí o arredondamento em vez de comparar .days.
+        criado = datetime.fromisoformat(report["created_at"]).replace(tzinfo=None)
+        dias = (report["expires_at_dt"] - criado).total_seconds() / 86400
+        assert round(dias) == server.CREDIT_REPORT_RETENTION_DAYS
+
+    asyncio.run(run())
+
+
+def test_get_report_410_quando_expirou():
+    async def run():
+        await _reset()
+        await server.db.credit_orders.insert_one(_make_order())
+        await server._generate_credit_report("order-1")
+        order = await server.db.credit_orders.find_one({"id": "order-1"})
+
+        # Simula o TTL do Mongo: o pedido segue "ready" e o relatório sumiu.
+        await server.db.credit_reports.delete_many({"id": order["report_id"]})
+
+        with pytest.raises(HTTPException) as exc:
+            await server.get_credit_report("order-1", USER)
+        # 410 (e não 404) para o front diferenciar expirado de erro.
+        assert exc.value.status_code == 410
+        assert "expirou" in exc.value.detail
+
+    asyncio.run(run())
+
+
 def test_get_report_conflict_when_not_ready():
     async def run():
         await _reset()
@@ -116,6 +156,67 @@ def test_process_credit_session_triggers_generation():
         order = await server.db.credit_orders.find_one({"id": "order-1"})
         assert order["status"] == "ready"
         assert order["report_id"]
+
+    asyncio.run(run())
+
+
+def _iso_horas_atras(horas: int) -> str:
+    return (datetime.now(timezone.utc) - timedelta(hours=horas)).isoformat()
+
+
+def test_purga_apaga_documento_de_pedido_abandonado():
+    async def run():
+        await _reset()
+        antigo = _make_order("velho", status="pending")
+        antigo["created_at"] = _iso_horas_atras(server.CREDIT_ORDER_DOC_TTL_HOURS + 1)
+        await server.db.credit_orders.insert_one(antigo)
+
+        assert await server.purge_abandoned_credit_documents() == 1
+
+        order = await server.db.credit_orders.find_one({"id": "velho"})
+        assert "documento_enc" not in order
+        assert order["documento_purgado_em"]
+        # Status intacto: mexer nele quebraria um pagamento atrasado.
+        assert order["status"] == "pending"
+        # Trilha de auditoria preservada.
+        assert order["documento_hash"] and order["documento_masked"]
+
+    asyncio.run(run())
+
+
+def test_purga_preserva_pedido_recente_e_pedido_pago():
+    async def run():
+        await _reset()
+        recente = _make_order("recente", status="pending")
+        recente["created_at"] = _iso_horas_atras(1)
+        pago_antigo = _make_order("pago", status="paid")
+        pago_antigo["created_at"] = _iso_horas_atras(server.CREDIT_ORDER_DOC_TTL_HOURS + 10)
+        await server.db.credit_orders.insert_many([recente, pago_antigo])
+
+        assert await server.purge_abandoned_credit_documents() == 0
+
+        for oid in ("recente", "pago"):
+            order = await server.db.credit_orders.find_one({"id": oid})
+            assert order["documento_enc"], f"{oid} não deveria ter sido purgado"
+
+    asyncio.run(run())
+
+
+def test_pagamento_apos_purga_falha_com_erro_explicito():
+    async def run():
+        await _reset()
+        order = _make_order("tardio", status="pending")
+        order["created_at"] = _iso_horas_atras(server.CREDIT_ORDER_DOC_TTL_HOURS + 1)
+        await server.db.credit_orders.insert_one(order)
+        await server.purge_abandoned_credit_documents()
+
+        # Pagamento chega depois da purga: não pode gerar relatório silenciosamente.
+        await server._process_credit_session("cs_test_1", paid=True)
+
+        atualizado = await server.db.credit_orders.find_one({"id": "tardio"})
+        assert atualizado["status"] == "error"
+        assert "expirou" in atualizado["error"]
+        assert await server.db.credit_reports.count_documents({"order_id": "tardio"}) == 0
 
     asyncio.run(run())
 

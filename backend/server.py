@@ -90,6 +90,13 @@ try:
     CREDIT_REPORT_RETENTION_DAYS = int(os.environ.get('CREDIT_REPORT_RETENTION_DAYS', '90'))
 except ValueError:
     CREDIT_REPORT_RETENTION_DAYS = 90
+# Janela em que o CPF cifrado de um pedido não pago ainda é útil. A sessão do
+# Stripe expira em 24h, então depois disso o pedido não pode mais virar pago —
+# 48h dá margem de sobra e mantém a retenção curta.
+try:
+    CREDIT_ORDER_DOC_TTL_HOURS = int(os.environ.get('CREDIT_ORDER_DOC_TTL_HOURS', '48'))
+except ValueError:
+    CREDIT_ORDER_DOC_TTL_HOURS = 48
 CREDIT_CONSENT_VERSION = os.environ.get('CREDIT_CONSENT_VERSION', 'v1')
 
 app = FastAPI()
@@ -829,6 +836,23 @@ async def _generate_credit_report(order_id: str) -> None:
     if not claimed:
         return  # já em processamento, pronto, ou não pago ainda
 
+    if not claimed.get("documento_enc"):
+        # A varredura de retenção já apagou o documento: o pagamento chegou
+        # depois da janela. Erro explícito para o suporte saber que cabe estorno.
+        logger.warning(f"Credit order {order_id} pago após a purga do documento")
+        await db.credit_orders.update_one(
+            {"id": order_id},
+            {"$set": {
+                "status": "error",
+                "error": (
+                    "Este pedido expirou antes da confirmação do pagamento. "
+                    "Refaça a consulta — qualquer cobrança será estornada."
+                ),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }},
+        )
+        return
+
     try:
         documento = decrypt_documento(claimed["documento_enc"])
     except Exception:
@@ -874,6 +898,10 @@ async def _generate_credit_report(order_id: str) -> None:
         "created_at": created_at.isoformat(),
         "expires_at": expires_at.isoformat(),
     }
+    # O índice TTL só age sobre BSON Date — a string ISO acima é para a API.
+    # Retenção <= 0 desliga a expiração (o campo não é gravado).
+    if CREDIT_REPORT_RETENTION_DAYS > 0:
+        report_doc["expires_at_dt"] = expires_at
     await db.credit_reports.insert_one(report_doc)
     # Documento em claro deixa de ser necessário: apagamos a versão cifrada (LGPD).
     await db.credit_orders.update_one(
@@ -882,6 +910,57 @@ async def _generate_credit_report(order_id: str) -> None:
                   "updated_at": datetime.now(timezone.utc).isoformat()},
          "$unset": {"documento_enc": ""}},
     )
+
+
+async def purge_abandoned_credit_documents() -> int:
+    """Apaga o CPF cifrado de pedidos abandonados (checkout iniciado, nunca pago).
+
+    O `documento_enc` existe só para a janela entre o checkout e a geração do
+    relatório. Sem pagamento essa finalidade nunca se concretiza, então manter o
+    dado contraria o consentimento (LGPD) — mas o resto do pedido é preservado
+    como trilha de auditoria.
+
+    O `status` é mantido de propósito: alterá-lo quebraria a reconciliação de um
+    pagamento que chegasse atrasado, e o cliente pagaria sem receber o relatório.
+    Quem trata esse caso é `_generate_credit_report`, com erro explícito.
+    """
+    agora = datetime.now(timezone.utc)
+    limite = (agora - timedelta_hours(CREDIT_ORDER_DOC_TTL_HOURS)).isoformat()
+    result = await db.credit_orders.update_many(
+        {
+            "status": "pending",
+            "documento_enc": {"$exists": True},
+            "created_at": {"$lt": limite},
+        },
+        {
+            "$unset": {"documento_enc": ""},
+            "$set": {"documento_purgado_em": agora.isoformat()},
+        },
+    )
+    if result.modified_count:
+        logger.info(
+            f"[credit] documento cifrado apagado de {result.modified_count} "
+            f"pedido(s) abandonado(s) (> {CREDIT_ORDER_DOC_TTL_HOURS}h)"
+        )
+    return result.modified_count
+
+
+async def credit_retention_worker_loop(interval_seconds: int = 3600):
+    """Varredura de retenção da análise de crédito (LGPD).
+
+    O relatório expira via índice TTL do Mongo; só o pedido abandonado precisa
+    desta varredura, porque TTL apaga o documento inteiro e aqui queremos zerar
+    apenas um campo.
+    """
+    import asyncio as _asyncio
+
+    logger.info(f"[credit] worker de retenção iniciado (intervalo={interval_seconds}s)")
+    while True:
+        try:
+            await purge_abandoned_credit_documents()
+        except Exception as e:
+            logger.exception(f"[credit] varredura de retenção falhou: {e}")
+        await _asyncio.sleep(interval_seconds)
 
 
 async def _process_credit_session(session_id: str, paid: bool) -> Optional[dict]:
@@ -1029,7 +1108,16 @@ async def get_credit_report(order_id: str, current: dict = Depends(get_current_u
 
     report = await db.credit_reports.find_one({"id": order["report_id"]}, {"_id": 0})
     if not report:
-        raise HTTPException(status_code=404, detail="Relatório não encontrado")
+        # O pedido está "ready" e aponta para um relatório que não existe mais:
+        # foi apagado pela retenção (TTL). 410 em vez de 404 para o front poder
+        # diferenciar "expirou" de "erro".
+        raise HTTPException(
+            status_code=410,
+            detail=(
+                f"Este relatório expirou. Por segurança, os dados de crédito são apagados "
+                f"após {CREDIT_REPORT_RETENTION_DAYS} dias. Faça uma nova consulta."
+            ),
+        )
     return {
         "order": _credit_order_public(order),
         "report": report.get("payload_normalizado", {}),
@@ -1149,6 +1237,11 @@ def timedelta_days(n):
     return _td(days=n)
 
 
+def timedelta_hours(n):
+    from datetime import timedelta as _td
+    return _td(hours=n)
+
+
 # =============================================================================
 # LEGACY status endpoints
 # =============================================================================
@@ -1210,11 +1303,17 @@ async def startup():
         await db.credit_orders.create_index("user_id")
         await db.credit_orders.create_index("payment.session_id")
         await db.credit_orders.create_index("documento_hash")
+        # Suporta a varredura de retenção (status + idade do pedido).
+        await db.credit_orders.create_index([("status", 1), ("created_at", 1)])
         await db.credit_reports.create_index("id", unique=True)
         await db.credit_reports.create_index("order_id")
+        # Retenção LGPD: o Mongo apaga o relatório sozinho quando expires_at_dt
+        # vence, sem depender de worker de pé.
+        await db.credit_reports.create_index("expires_at_dt", expireAfterSeconds=0)
         # Launch background drip worker
         import asyncio as _asyncio
         _asyncio.create_task(drip_worker_loop(db, interval_seconds=60))
+        _asyncio.create_task(credit_retention_worker_loop())
         logger.info("Startup complete: indexes + admin seeded + drip worker + financial state")
     except Exception as e:
         logger.error(f"Startup error: {e}")

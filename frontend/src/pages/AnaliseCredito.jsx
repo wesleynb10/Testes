@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth, formatApiError } from "@/context/AuthContext";
-import { brl } from "@/lib/format";
+import { useFinance } from "@/context/FinanceContext";
+import { brl, parseNum, stripLeadingZeros } from "@/lib/format";
 import {
   ShieldCheck,
   Loader2,
@@ -13,6 +14,9 @@ import {
   Lock,
   CheckCircle2,
   ExternalLink,
+  Scale,
+  Wallet,
+  BadgeCheck,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -87,7 +91,7 @@ const FAIXA_META = {
 // ---------------------------------------------------------------------------
 // Sub-componentes de relatório
 // ---------------------------------------------------------------------------
-function ScoreCard({ score, faixa, motivos }) {
+function ScoreCard({ score, faixa, motivos, capacidadePagamento, perfil }) {
   const meta = FAIXA_META[faixa] || FAIXA_META.indisponivel;
   const pctFill = score ? Math.min(100, Math.max(2, (score / 1000) * 100)) : 0;
   return (
@@ -108,6 +112,22 @@ function ScoreCard({ score, faixa, motivos }) {
       <div className="flex justify-between text-[10px]" style={{ color: "var(--text-muted)" }}>
         <span>0</span><span>600</span><span>700</span><span>1000</span>
       </div>
+      {(capacidadePagamento || perfil) && (
+        <div className="mt-4 pt-4 border-t border-[var(--ink-line)] grid grid-cols-2 gap-3 text-[13px]">
+          {capacidadePagamento && (
+            <div>
+              <div className="kpi-label mb-1">Capacidade de pagamento</div>
+              <div style={{ color: "var(--text-primary)" }}>{capacidadePagamento}</div>
+            </div>
+          )}
+          {perfil && (
+            <div>
+              <div className="kpi-label mb-1">Perfil</div>
+              <div style={{ color: "var(--text-primary)" }}>{perfil}</div>
+            </div>
+          )}
+        </div>
+      )}
       {motivos?.length > 0 && (
         <div className="mt-4 pt-4 border-t border-[var(--ink-line)]">
           <div className="kpi-label mb-2">Principais fatores</div>
@@ -154,25 +174,173 @@ function RatingCard({ rating, scr }) {
         </div>
         <div>
           <div className="kpi-label mb-1">Instituições</div>
-          <div className="font-mono-num" style={{ color: "var(--text-primary)" }}>{scr?.quantidade_instituicoes ?? "—"}</div>
+          <div className="font-mono-num" style={{ color: "var(--text-primary)" }}>
+            {scr?.quantidade_instituicoes ?? "—"}
+            {scr?.quantidade_operacoes ? (
+              <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                {" "}· {scr.quantidade_operacoes} operações
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+      {(scr?.divida_atual > 0 || scr?.carteira?.limite > 0) && (
+        <div className="mt-4 pt-4 border-t border-[var(--ink-line)]">
+          <div className="kpi-label mb-3">Composição da carteira</div>
+          <div className="space-y-2 text-[13px]">
+            <CarteiraLinha rotulo="A vencer" valor={scr?.carteira?.vencer} />
+            <CarteiraLinha rotulo="Vencido" valor={scr?.carteira?.vencido} destaque="var(--danger)" />
+            <CarteiraLinha rotulo="Prejuízo" valor={scr?.carteira?.prejuizo} destaque="var(--danger)" />
+            <CarteiraLinha rotulo="Limite disponível" valor={scr?.carteira?.limite} />
+            <div className="flex justify-between pt-2 border-t border-[var(--ink-line)]">
+              <span style={{ color: "var(--text-secondary)" }}>Dívida atual</span>
+              <span className="font-mono-num" style={{ color: "var(--gold-bright)" }}>
+                {brl(scr?.divida_atual || 0)}
+              </span>
+            </div>
+          </div>
+          {scr?.data_inicio_relacionamento && (
+            <div className="text-[11px] mt-3" style={{ color: "var(--text-muted)" }}>
+              Relacionamento bancário desde {scr.data_inicio_relacionamento.split(" ")[0]}.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CarteiraLinha({ rotulo, valor, destaque }) {
+  const temValor = Number(valor) > 0;
+  return (
+    <div className="flex justify-between">
+      <span style={{ color: "var(--text-muted)" }}>{rotulo}</span>
+      <span
+        className="font-mono-num"
+        style={{ color: temValor && destaque ? destaque : "var(--text-primary)" }}
+      >
+        {brl(valor || 0)}
+      </span>
+    </div>
+  );
+}
+
+// Fato verificável (Receita Federal), diferente da renda presumida do mesmo payload:
+// CPF irregular barra crédito independente do score, então vem antes do resto.
+function SituacaoCpfCard({ cadastro }) {
+  const irregular = cadastro.obito || (cadastro.situacao_cadastral && !cadastro.regular);
+  const cor = irregular ? "var(--danger)" : "var(--success)";
+  return (
+    <div className="card-premium p-6" data-testid="credit-cadastro-card">
+      <div className="flex items-center gap-2 mb-4">
+        <BadgeCheck className="w-[18px] h-[18px]" style={{ color: cor }} />
+        <div className="kpi-label">Situação do CPF na Receita Federal</div>
+      </div>
+      <div className="flex items-center gap-3">
+        {irregular ? (
+          <AlertCircle className="w-6 h-6 shrink-0" style={{ color: cor }} />
+        ) : (
+          <CheckCircle2 className="w-6 h-6 shrink-0" style={{ color: cor }} />
+        )}
+        <div>
+          <div className="font-display text-[18px]" style={{ color: cor }}>
+            {cadastro.obito ? "Consta indicativo de óbito" : cadastro.situacao_cadastral || "—"}
+          </div>
+          <div className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+            {irregular
+              ? "CPF irregular impede crédito e abertura de conta, mesmo com score bom — regularize antes."
+              : "CPF apto para crédito e abertura de conta."}
+            {cadastro.data_situacao ? ` Verificado em ${cadastro.data_situacao.split(" ")[0]}.` : ""}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function PendenciasCard({ pendencias, temPendencias }) {
+// A renda do bureau é presumida (modelo estatístico) e erra com frequência, então
+// entra como sugestão editável: o valor que segue para o orçamento é o confirmado.
+function CtaOrcamento({ renda }) {
+  const nav = useNavigate();
+  const { state, updateProfile, completeChecklistItem } = useFinance();
+  const rendaSalva = state?.profile?.monthlyIncome || 0;
+  const presumida = renda?.renda_estimada || 0;
+  const [valor, setValor] = useState(String(rendaSalva || presumida || ""));
+
+  const confirmar = () => {
+    const n = parseNum(valor);
+    if (n > 0) {
+      updateProfile({ monthlyIncome: n });
+      completeChecklistItem?.("income");
+    }
+    nav("/app/orcamento");
+  };
+
+  const domicilio = [
+    renda?.moradores ? `${renda.moradores} moradores` : null,
+    renda?.classe_social ? `classe ${renda.classe_social}` : null,
+    renda?.ocupacao,
+  ].filter(Boolean).join(" · ");
+
+  return (
+    <div className="card-gold p-6" data-testid="credit-cta">
+      <div className="font-display text-[20px]" style={{ letterSpacing: "-0.02em" }}>
+        Transforme esse diagnóstico em um plano.
+      </div>
+      <div className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>
+        Organize suas dívidas e monte um orçamento que cabe no seu bolso.
+      </div>
+
+      <div className="mt-5 flex items-end gap-4 flex-wrap">
+        <div style={{ minWidth: 200 }}>
+          <div className="kpi-label mb-2">Sua renda mensal líquida</div>
+          <input
+            data-testid="credit-renda-input"
+            className="input-premium font-mono-num"
+            inputMode="decimal"
+            value={valor}
+            onChange={(e) => setValor(stripLeadingZeros(e.target.value))}
+            placeholder="0,00"
+          />
+        </div>
+        <button
+          onClick={confirmar}
+          className="btn-gold"
+          data-testid="credit-goto-budget"
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, padding: "14px 28px" }}
+        >
+          Montar Plano de Orçamento <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {presumida > 0 && (
+        <div className="text-[12px] mt-3 flex items-start gap-2" style={{ color: "var(--text-muted)" }}>
+          <Wallet className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>
+            O bureau <strong>presume</strong> {brl(presumida)}/mês
+            {renda?.faixa_salarial ? ` (${renda.faixa_salarial.toLowerCase()})` : ""}
+            {renda?.confiabilidade ? ` · confiabilidade ${renda.confiabilidade.toLowerCase()}` : ""}
+            . É uma estimativa estatística {domicilio ? `a partir do seu perfil (${domicilio})` : "de perfil"},
+            não sua renda declarada — corrija acima se estiver diferente.
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PendenciasCard({ pendencias, temPendencias, resumo }) {
   return (
     <div className="card-premium p-6" data-testid="credit-pendencias-card">
       <div className="flex items-center gap-2 mb-4">
         <FileWarning className="w-[18px] h-[18px]" style={{ color: temPendencias ? "var(--danger)" : "var(--success)" }} />
-        <div className="kpi-label">Negativações (PEFIN / REFIN)</div>
+        <div className="kpi-label">Negativações e restrições</div>
       </div>
       {!temPendencias ? (
         <div className="flex items-center gap-3 py-4">
           <CheckCircle2 className="w-6 h-6" style={{ color: "var(--success)" }} />
           <div className="text-[14px]" style={{ color: "var(--text-secondary)" }}>
-            Nenhuma pendência encontrada nas fontes consultadas.
+            {resumo?.status || "Nenhuma pendência encontrada nas fontes consultadas."}
           </div>
         </div>
       ) : (
@@ -188,13 +356,67 @@ function PendenciasCard({ pendencias, temPendencias }) {
                   {p.credor || "Credor não informado"}
                 </div>
                 <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                  {p.tipo} {p.data_ocorrencia ? `· ${p.data_ocorrencia}` : ""} {p.situacao ? `· ${p.situacao}` : ""}
+                  {[p.tipo, p.data_ocorrencia, p.situacao, p.detalhe].filter(Boolean).join(" · ")}
                 </div>
               </div>
               <div className="font-mono-num font-semibold" style={{ color: "var(--danger)" }}>{brl(p.valor || 0)}</div>
             </div>
           ))}
         </div>
+      )}
+      <div className="text-[11px] mt-4" style={{ color: "var(--text-muted)" }}>
+        PEFIN/REFIN, ações judiciais, falência e cheques sem fundo. Protestos cobrem o estado de SP.
+      </div>
+    </div>
+  );
+}
+
+function DividaAtivaCard({ dividaAtiva }) {
+  const possui = Boolean(dividaAtiva?.possui_divida);
+  const itens = dividaAtiva?.itens || [];
+  return (
+    <div className="card-premium p-6" data-testid="credit-divida-ativa-card">
+      <div className="flex items-center gap-2 mb-4">
+        <Scale className="w-[18px] h-[18px]" style={{ color: possui ? "var(--danger)" : "var(--success)" }} />
+        <div className="kpi-label">Dívida ativa da União (PGFN)</div>
+      </div>
+      {!possui ? (
+        <div className="flex items-center gap-3 py-4">
+          <CheckCircle2 className="w-6 h-6" style={{ color: "var(--success)" }} />
+          <div className="text-[14px]" style={{ color: "var(--text-secondary)" }}>
+            Nenhum débito inscrito na dívida ativa da União.
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-baseline justify-between mb-3">
+            <div className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+              {dividaAtiva.quantidade} inscrição(ões)
+            </div>
+            <div className="font-mono-num font-semibold text-[18px]" style={{ color: "var(--danger)" }}>
+              {brl(dividaAtiva.valor_total || 0)}
+            </div>
+          </div>
+          <div className="space-y-3">
+            {itens.map((d, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between p-3 rounded-lg"
+                style={{ background: "rgba(11,10,15,0.5)", border: "1px solid var(--ink-line)" }}
+              >
+                <div>
+                  <div className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                    {d.natureza || "Débito federal"}
+                  </div>
+                  <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                    {d.orgao || "PGFN"} {d.situacao ? `· ${d.situacao}` : ""}
+                  </div>
+                </div>
+                <div className="font-mono-num font-semibold" style={{ color: "var(--danger)" }}>{brl(d.valor || 0)}</div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -205,7 +427,6 @@ function PendenciasCard({ pendencias, temPendencias }) {
 // ---------------------------------------------------------------------------
 export default function AnaliseCredito() {
   const { api } = useAuth();
-  const nav = useNavigate();
   const [params, setParams] = useSearchParams();
   const orderId = params.get("order_id");
   const canceled = params.get("canceled");
@@ -433,30 +654,29 @@ export default function AnaliseCredito() {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ScoreCard score={report.score} faixa={report.score_faixa} motivos={report.score_motivos} />
+            <ScoreCard
+              score={report.score}
+              faixa={report.score_faixa}
+              motivos={report.score_motivos}
+              capacidadePagamento={report.capacidade_pagamento}
+              perfil={report.perfil}
+            />
             <RatingCard rating={report.rating_bacen} scr={report.scr} />
           </div>
 
-          <PendenciasCard pendencias={report.pendencias || []} temPendencias={report.tem_pendencias} />
+          <PendenciasCard
+            pendencias={report.pendencias || []}
+            temPendencias={report.tem_pendencias}
+            resumo={report.pendencias_resumo}
+          />
 
-          <div className="card-gold p-6 flex items-center justify-between flex-wrap gap-4" data-testid="credit-cta">
-            <div>
-              <div className="font-display text-[20px]" style={{ letterSpacing: "-0.02em" }}>
-                Transforme esse diagnóstico em um plano.
-              </div>
-              <div className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>
-                Organize suas dívidas e monte um orçamento que cabe no seu bolso.
-              </div>
-            </div>
-            <button
-              onClick={() => nav("/app/orcamento")}
-              className="btn-gold"
-              data-testid="credit-goto-budget"
-              style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, padding: "14px 28px" }}
-            >
-              Montar Plano de Orçamento <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          {report.cadastro?.situacao_cadastral && <SituacaoCpfCard cadastro={report.cadastro} />}
+
+          {report.divida_ativa && Object.keys(report.divida_ativa).length > 0 && (
+            <DividaAtivaCard dividaAtiva={report.divida_ativa} />
+          )}
+
+          <CtaOrcamento renda={report.renda} />
 
           {report.comprovante_url && (
             <a

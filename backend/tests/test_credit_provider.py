@@ -13,7 +13,11 @@ from credit_provider import (
     gerar_relatorio,
     hash_documento,
     mask_documento,
+    parse_cadastro,
+    parse_divida_ativa,
     parse_pendencias,
+    parse_pendencias_resumo,
+    parse_renda,
     parse_score,
     parse_scr,
     valida_documento,
@@ -74,6 +78,23 @@ def test_derive_rating_mapeia_faixa_risco_quando_sem_operacoes():
     assert derive_rating_bacen([], "Alto", None) == "E"
 
 
+@pytest.mark.parametrize(
+    "faixa,esperado",
+    [
+        ("Risco Baixo", "A"),      # forma real da Direct Data
+        ("Baixo Risco", "A"),
+        ("baixo", "A"),
+        ("Risco Médio Alto", "D"),
+        ("MÉDIO BAIXO", "B"),
+        ("Risco Muito Alto", "G"),
+    ],
+)
+def test_derive_rating_aceita_variacoes_da_faixa_risco(faixa, esperado):
+    """A faixa precisa vencer o fallback por score, senão o rating contradiz o texto."""
+    # score 575 sozinho daria "D": se a faixa não casar, o card fica incoerente.
+    assert derive_rating_bacen([], faixa, 575) == esperado
+
+
 def test_derive_rating_usa_score_como_fallback():
     assert derive_rating_bacen([], None, 950) == "AA"
     assert derive_rating_bacen([], None, 150) == "H"
@@ -87,6 +108,103 @@ def test_parse_score_extrai_score_motivos():
     assert parsed["faixa"] == "baixo"
     assert "Bom histórico" in parsed["motivos"]
     assert "Renda estável" in parsed["motivos"]
+
+
+def test_parse_score_le_estrutura_real_aninhada_em_pessoa_fisica():
+    """O QUOD devolve o score dentro de pessoaFisica, não na raiz do retorno."""
+    payload = {
+        "retorno": {
+            "documentoConsultado": "529...",
+            "pessoaFisica": {
+                "score": 812,
+                "faixaScore": "Baixo índice de inadimplência",
+                "capacidadePagamento": "Alta",
+                "perfil": "Consumidor adimplente",
+            },
+        }
+    }
+    parsed = parse_score(payload, "pf")
+    assert parsed["score"] == 812
+    assert parsed["faixa"] == "baixo"
+    assert parsed["faixa_provedor"] == "Baixo índice de inadimplência"
+    assert parsed["capacidade_pagamento"] == "Alta"
+    assert parsed["perfil"] == "Consumidor adimplente"
+
+
+def test_parse_score_pj_usa_indicadores_como_motivos():
+    payload = {
+        "retorno": {
+            "pessoaJuridica": {
+                "score": 540,
+                "indicadoresNegocio": [
+                    {"indicador": "Endividamento", "risco": "Alto"},
+                    {"indicador": "Tempo de atividade", "status": "Regular"},
+                ],
+            }
+        }
+    }
+    parsed = parse_score(payload, "pj")
+    assert parsed["score"] == 540
+    assert parsed["faixa"] == "alto"
+    assert "Endividamento: Alto" in parsed["motivos"]
+    assert "Tempo de atividade: Regular" in parsed["motivos"]
+
+
+def test_parse_scr_le_modalidades_e_carteira_objeto():
+    payload = {
+        "retorno": {
+            "score": "705",
+            "faixaRisco": "Baixo",
+            "responsabilidadeTotal": "R$ 12.000,00",
+            "quantidadeOperacoes": 2,
+            "carteiraCredito": {"total": "R$ 12.000,00", "vencido": "R$ 500,00",
+                                "limite": "R$ 3.000,00", "prejuizo": "R$ 0,00",
+                                "vencer": "R$ 11.500,00"},
+            "modalidades": [
+                {"descricaoModalidade": "Cartão de crédito",
+                 "aVencer": {"total": "R$ 2.000,00"}, "vencido": {"total": "R$ 500,00"},
+                 "prejuizo": {"total": "R$ 0,00"}},
+                {"descricaoModalidade": "Financiamento",
+                 "aVencer": {"total": "R$ 9.500,00"}},
+            ],
+        }
+    }
+    parsed = parse_scr(payload)
+    assert parsed["score"] == 705
+    assert parsed["carteira"]["total"] == 12000.00
+    assert parsed["carteira"]["vencido"] == 500.00
+    assert parsed["quantidade_operacoes"] == 2
+    assert parsed["modalidades"][0]["modalidade"] == "Cartão de crédito"
+    assert parsed["modalidades"][0]["a_vencer"] == 2000.00
+    assert parsed["modalidades"][1]["vencido"] == 0.0
+
+
+def test_parse_scr_usa_risco_total_quando_responsabilidade_vem_zerada():
+    """Caso real: responsabilidadeTotal vazio com R$ 110 mil em operações."""
+    payload = {
+        "retorno": {
+            "responsabilidadeTotal": "",
+            "riscoTotal": "R$ 110.134,00",
+            "quantidadeInstituicoes": 7,
+            "quantidadeOperacoes": 45,
+            "carteiraCredito": {
+                "total": "R$ 110.134,00",
+                "limite": "R$ 23.150,00",
+                "vencer": "R$ 86.984,00",
+                "vencido": "R$ 0,00",
+                "prejuizo": "R$ 0,00",
+            },
+        }
+    }
+    parsed = parse_scr(payload)
+    assert parsed["responsabilidade_total"] == 110134.00
+    # A dívida é o saldo — o `total` da carteira inclui limite não usado.
+    assert parsed["divida_atual"] == 86984.00
+
+
+def test_parse_scr_prefere_responsabilidade_informada():
+    payload = {"retorno": {"responsabilidadeTotal": "R$ 900,00", "riscoTotal": "R$ 5.000,00"}}
+    assert parse_scr(payload)["responsabilidade_total"] == 900.00
 
 
 def test_parse_scr_normaliza_campos():
@@ -110,12 +228,169 @@ def test_parse_pendencias_lista_vazia_quando_ausente():
     assert parse_pendencias({"retorno": {}}) == []
 
 
-def test_parse_pendencias_normaliza_itens():
-    payload = {"retorno": {"pendencias": [{"tipo": "PEFIN", "credor": "Loja X", "valor": "349,90"}]}}
+def _payload_negativo(pendencia_financeira):
+    """Estrutura real: retorno.pessoaFisica.pendenciaFinanceira.<bucket>."""
+    return {"retorno": {"pessoaFisica": {"pendenciaFinanceira": pendencia_financeira}}}
+
+
+def test_parse_pendencias_normaliza_buckets_reais():
+    payload = _payload_negativo({
+        "status": "Consta Pendência",
+        "totalPendencia": 3,
+        "protestos": [{
+            "situacao": "Em aberto",
+            "valorTotal": 1200,
+            "cartorios": [{"nome": "3º Ofício de Notas", "valorProtestado": 1200}],
+        }],
+        "acoesJudiciais": [{
+            "autorProcesso": "Loja X",
+            "tipoProcesso": "Execução de título",
+            "valor": "349,90",
+            "dataAjuizamento": "12/03/2026",
+            "status": "Em andamento",
+            "numeroProcessoPrincipal": "123-45",
+        }],
+        "chequesSemFundo": [{"nomeAgencia": "Ag. Centro", "quantidadeOcorrencia": 2,
+                             "dataUltimaOcorrencia": "01/02/2026"}],
+        "recuperacoesJudiciaisFalencia": [],
+    })
+    itens = parse_pendencias(payload)
+    assert len(itens) == 3
+
+    protesto = next(i for i in itens if i["tipo"] == "Protesto")
+    assert protesto["valor"] == 1200.0
+    assert protesto["credor"] == "3º Ofício de Notas"
+
+    acao = next(i for i in itens if i["tipo"] == "Execução de título")
+    assert acao["valor"] == 349.90
+    assert acao["credor"] == "Loja X"
+    assert acao["contrato"] == "123-45"
+
+    cheque = next(i for i in itens if i["tipo"] == "Cheque sem fundo")
+    assert cheque["situacao"] == "2 ocorrência(s)"
+
+
+def test_parse_pendencias_ficha_limpa_nao_inventa_ocorrencia():
+    """`pendenciaFinanceira` é container: virava uma negativação fantasma."""
+    payload = _payload_negativo({
+        "status": "Não Consta Pendência",
+        "totalPendencia": 0,
+        "protestos": [],
+        "acoesJudiciais": [],
+        "recuperacoesJudiciaisFalencia": [],
+        "chequesSemFundo": [],
+    })
+    assert parse_pendencias(payload) == []
+    resumo = parse_pendencias_resumo(payload)
+    assert resumo["status"] == "Não Consta Pendência"
+    assert resumo["total"] == 0
+
+
+def test_parse_pendencias_usa_escopo_pj_para_cnpj():
+    payload = {"retorno": {"pessoaJuridica": {"pendenciaFinanceira": {
+        "status": "Consta Pendência",
+        "protestos": [{"valorTotal": 500, "cartorios": []}],
+    }}}}
+    itens = parse_pendencias(payload, "pj")
+    assert len(itens) == 1
+    assert itens[0]["valor"] == 500.0
+
+
+def test_parse_pendencias_le_buckets_aninhados_em_pessoa_fisica():
+    payload = {"retorno": {"pessoaFisica": {"acoesJudiciais": [{"valor": 500}]}}}
     itens = parse_pendencias(payload)
     assert len(itens) == 1
-    assert itens[0]["valor"] == 349.90
-    assert itens[0]["credor"] == "Loja X"
+    assert itens[0]["tipo"] == "Ação judicial"
+
+
+def test_parse_renda_extrai_perfil_domiciliar():
+    payload = {
+        "retorno": {
+            "rendaEstimada": "4.200,00",
+            "rendaFaixaSalarial": "De 3 a 5 salários mínimos",
+            "classeSocial": "C1",
+            "perfilDomiciliar": {"rendaDomiciliar": "6800,00", "rendaPerCapita": "2266,67"},
+        }
+    }
+    renda = parse_renda(payload)
+    assert renda["renda_estimada"] == 4200.00
+    assert renda["renda_domiciliar"] == 6800.00
+    assert renda["classe_social"] == "C1"
+
+
+@pytest.mark.parametrize(
+    "situacao,obito,regular",
+    [
+        ("Regular", False, True),
+        ("REGULAR", False, True),
+        ("Suspensa", False, False),
+        ("Pendente de Regularização", False, False),
+        ("Regular", True, True),  # `regular` reflete a Receita; óbito é sinal à parte
+    ],
+)
+def test_parse_cadastro_classifica_situacao_na_receita(situacao, obito, regular):
+    """É o dado que justifica a consulta: fato verificável, não inferência."""
+    payload = {"retorno": {
+        "situacaoCadastral": situacao,
+        "dataSituacaoCadastral": "10/01/2020",
+        "obito": obito,
+    }}
+    cadastro = parse_cadastro(payload)
+    assert cadastro["situacao_cadastral"] == situacao
+    assert cadastro["regular"] is regular
+    assert cadastro["obito"] is obito
+    assert cadastro["data_situacao"] == "10/01/2020"
+
+
+def test_parse_renda_traz_confiabilidade_e_composicao_do_domicilio():
+    """A renda é presumida: sem confiabilidade e contexto, o número engana."""
+    payload = {
+        "retorno": {
+            "rendaEstimada": "4605,21",
+            "rendaFaixaSalarial": "Faixa 3 salários mínimos",
+            "cbo": "Analista de sistemas",
+            "perfilDomiciliar": {
+                "quantidadeMoradores": 4,
+                "quantidadeAdultos": 2,
+                "quantidadeMenores": 2,
+                "tipoDomicilio": "Casa",
+                "faixaRendaPerCapita": "De 2 a 3 salários mínimos",
+                "confiabilidade": "Média",
+                "classeSocialFamiliar": "C2",
+            },
+        }
+    }
+    renda = parse_renda(payload)
+    assert renda["confiabilidade"] == "Média"
+    assert renda["moradores"] == 4
+    assert renda["adultos"] == 2
+    assert renda["menores"] == 2
+    assert renda["tipo_domicilio"] == "Casa"
+    assert renda["faixa_renda_per_capita"] == "De 2 a 3 salários mínimos"
+    assert renda["ocupacao"] == "Analista de sistemas"
+    assert renda["classe_social"] == "C2"
+
+
+def test_parse_divida_ativa_soma_valores():
+    payload = {
+        "retorno": {
+            "possuiDivida": True,
+            "dividas": [
+                {"valor": "1.000,00", "situacao": "Ativa", "natureza": "Tributária"},
+                {"valor": 250.50},
+            ],
+        }
+    }
+    divida = parse_divida_ativa(payload)
+    assert divida["possui_divida"] is True
+    assert divida["quantidade"] == 2
+    assert divida["valor_total"] == 1250.50
+
+
+def test_parse_divida_ativa_sem_registros():
+    divida = parse_divida_ativa({"retorno": {"possuiDivida": False, "dividas": []}})
+    assert divida["possui_divida"] is False
+    assert divida["valor_total"] == 0.0
 
 
 # --------------------------- Provider mock --------------------------------
@@ -126,7 +401,8 @@ def test_mock_provider_gera_relatorio_completo(monkeypatch):
     assert report.tipo == "pf"
     assert report.score == 742
     assert report.score_faixa == "baixo"
-    assert report.rating_bacen == "C"  # pior entre A e C
+    # Derivado da faixaRisco "Médio baixo" — o SCR real não tem letra por operação.
+    assert report.rating_bacen == "B"
     assert report.tem_pendencias is True
     assert report.documento == "***.***.**7-25"  # nunca em claro
 
@@ -176,33 +452,115 @@ def _install_fake(monkeypatch, routes, calls):
     )
 
 
+def _routes_padrao():
+    """Rotas cobrindo as cinco consultas, nas estruturas REAIS da Direct Data."""
+    return {
+        "/api/Score": _FakeResponse({
+            "metaDados": {"mensagem": "Sucesso"},
+            "retorno": {"pessoaFisica": {"score": 810, "faixaScore": "Baixo",
+                                         "motivos": ["Ótimo histórico"]}},
+        }),
+        "/api/SCRBacenDetalhada": _FakeResponse({
+            # O comprovante vem em metaDados, não em retorno.
+            "metaDados": {"mensagem": "Sucesso", "urlComprovante": "http://x/y.pdf"},
+            "retorno": {"score": "720", "faixaRisco": "Baixo",
+                        "responsabilidadeTotal": "R$ 5.000,00", "quantidadeOperacoes": 1,
+                        "modalidades": [{"descricaoModalidade": "Cartão",
+                                         "aVencer": {"total": "R$ 5.000,00"}}]},
+        }),
+        "/api/DetalhamentoNegativo": _FakeResponse({
+            "retorno": {"pessoaFisica": {"pendenciaFinanceira": {
+                "status": "Não Consta Pendência", "totalPendencia": 0,
+                "protestos": [], "acoesJudiciais": [],
+                "recuperacoesJudiciaisFalencia": [], "chequesSemFundo": [],
+            }}},
+        }),
+        "/api/CadastroPessoaFisicaPlus": _FakeResponse(
+            {"retorno": {"rendaEstimada": "4200,00", "classeSocial": "C1"}}
+        ),
+        "/api/PGFNListaDevedoresUniao": _FakeResponse(
+            {"retorno": {"possuiDivida": False, "dividas": []}}
+        ),
+    }
+
+
 def test_directdata_monta_relatorio_e_envia_token(monkeypatch):
     monkeypatch.setenv("CREDIT_PROVIDER", "directdata")
     monkeypatch.setenv("DIRECTD_TOKEN", "tok-123")
-    monkeypatch.setenv("DIRECTD_PENDENCIAS_ENABLED", "true")
-    monkeypatch.setenv("DIRECTD_PENDENCIAS_ENDPOINT", "/api/PendenciasFinanceiras")
+    # Explícito: o teste cobre as 5 consultas, independente do .env do ambiente.
+    monkeypatch.setenv("DIRECTD_CADASTRO_PF_ENABLED", "true")
 
     calls = []
-    routes = {
-        "/api/Score": _FakeResponse({"retorno": {"score": 810, "motivos": ["Ótimo histórico"]}}),
-        "/api/SCRBacenDetalhada": _FakeResponse(
-            {"retorno": {"score": 720, "faixaRisco": "Baixo", "responsabilidadeTotal": 5000,
-                         "operacoes": [{"classificacaoRisco": "B"}], "urlComprovante": "http://x/y.pdf"}}
-        ),
-        "/api/PendenciasFinanceiras": _FakeResponse({"retorno": {"pendencias": []}}),
-    }
-    _install_fake(monkeypatch, routes, calls)
+    _install_fake(monkeypatch, _routes_padrao(), calls)
 
     report = asyncio.run(gerar_relatorio(CPF_VALIDO))
     assert report.score == 810
     assert report.score_faixa == "baixo"
-    assert report.rating_bacen == "B"
+    # O SCR real não traz letra por operação: o rating vem da faixaRisco "Baixo".
+    assert report.rating_bacen == "A"
     assert report.tem_pendencias is False
+    assert report.pendencias_resumo["status"] == "Não Consta Pendência"
     assert report.comprovante_url == "http://x/y.pdf"
+    assert report.renda["renda_estimada"] == 4200.00
+    assert report.divida_ativa["possui_divida"] is False
+    # Sem avisos: as cinco consultas responderam.
+    assert report.avisos == []
     # Token enviado como query param em toda chamada.
     assert all(c[1].get("Token") == "tok-123" for c in calls)
     # CPF enviado (dígitos), nunca mascarado, mas só server-side.
     assert any(c[1].get("CPF") == "52998224725" for c in calls)
+
+
+def test_directdata_usa_endpoints_padrao_confirmados(monkeypatch):
+    monkeypatch.setenv("CREDIT_PROVIDER", "directdata")
+    monkeypatch.setenv("DIRECTD_TOKEN", "tok-123")
+
+    calls = []
+    _install_fake(monkeypatch, _routes_padrao(), calls)
+    asyncio.run(gerar_relatorio(CPF_VALIDO))
+
+    chamados = {url.replace(credit_provider.DEFAULT_BASE_URL, "") for url, _ in calls}
+    assert chamados == {
+        credit_provider.ENDPOINT_SCORE,
+        credit_provider.ENDPOINT_SCR,
+        credit_provider.ENDPOINT_PENDENCIAS,
+        credit_provider.ENDPOINT_RENDA,
+        credit_provider.ENDPOINT_DIVIDA_ATIVA,
+    }
+
+
+def test_directdata_pula_renda_para_cnpj(monkeypatch):
+    monkeypatch.setenv("CREDIT_PROVIDER", "directdata")
+    monkeypatch.setenv("DIRECTD_TOKEN", "tok-123")
+
+    calls = []
+    _install_fake(monkeypatch, _routes_padrao(), calls)
+    report = asyncio.run(gerar_relatorio(CNPJ_VALIDO))
+
+    # Cadastro PF Plus não existe para CNPJ — não pode ser consultado nem cobrado.
+    assert not any(credit_provider.ENDPOINT_RENDA in url for url, _ in calls)
+    assert report.renda == {}
+    assert any(c[1].get("CNPJ") == "11222333000181" for c in calls)
+
+
+@pytest.mark.parametrize("flag", ["DIRECTD_CADASTRO_PF_ENABLED", "DIRECTD_RENDA_ENABLED"])
+def test_directdata_desabilitar_consultas_opcionais(monkeypatch, flag):
+    """`DIRECTD_RENDA_ENABLED` é o nome antigo e precisa continuar desligando."""
+    monkeypatch.setenv("CREDIT_PROVIDER", "directdata")
+    monkeypatch.setenv("DIRECTD_TOKEN", "tok-123")
+    monkeypatch.setenv(flag, "false")
+    monkeypatch.setenv("DIRECTD_DIVIDA_ATIVA_ENABLED", "false")
+
+    calls = []
+    _install_fake(monkeypatch, _routes_padrao(), calls)
+    report = asyncio.run(gerar_relatorio(CPF_VALIDO))
+
+    assert len(calls) == 3
+    assert not any(credit_provider.ENDPOINT_RENDA in url for url, _ in calls)
+    assert not any(credit_provider.ENDPOINT_DIVIDA_ATIVA in url for url, _ in calls)
+    # Desligada não deve virar aviso de "indisponível": não foi pedida.
+    assert report.renda == {} and report.cadastro == {}
+    assert report.avisos == []
 
 
 def test_directdata_degrada_quando_scr_falha(monkeypatch):

@@ -4,9 +4,18 @@ Espelha o estilo de `receipt_vision.py`: módulo próprio, `httpx.AsyncClient`,
 credenciais via `os.environ`, exceção dedicada (`CreditProviderError`) e
 normalização do retorno antes de devolver ao app.
 
-Fornecedor padrão: **Direct Data** (Score QUOD + SCR BACEN Detalhada +
-PEFIN/REFIN). Um provider `mock` devolve payloads fixos para desenvolver o
-front sem gastar crédito.
+Fornecedor padrão: **Direct Data**. Consultas que compõem o relatório (custo
+por consulta conforme o cardápio V5.3):
+
+    /api/Score                     Score de Crédito QUOD        R$ 1,98
+    /api/SCRBacenDetalhada         SCR Detalhada BACEN          R$ 4,90
+    /api/DetalhamentoNegativo      Detalhamento Negativo QUOD   R$ 2,38
+    /api/CadastroPessoaFisicaPlus  Renda presumida (só PF)      R$ 0,36
+    /api/PGFNListaDevedoresUniao   Dívida ativa da União        R$ 0,36
+
+O Score é obrigatório; as demais degradam com aviso e podem ser desligadas
+por env. Um provider `mock` devolve payloads fixos para desenvolver o front
+sem gastar crédito.
 
 REGRAS DE SEGURANÇA (LGPD / §7 do plano):
 - A Direct Data é chamada SOMENTE server-side; o Token nunca vai ao frontend.
@@ -19,6 +28,7 @@ import asyncio
 import logging
 import os
 import re
+import unicodedata
 from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Dict, List, Optional
@@ -30,6 +40,14 @@ logger = logging.getLogger("credit_provider")
 
 DEFAULT_BASE_URL = "https://apiv3.directd.com.br"
 DEFAULT_TIMEOUT = 45
+
+# Paths confirmados na central de ajuda da Direct Data. Cada um pode ser
+# sobrescrito por env (DIRECTD_<NOME>_ENDPOINT) sem alterar código.
+ENDPOINT_SCORE = "/api/Score"
+ENDPOINT_SCR = "/api/SCRBacenDetalhada"
+ENDPOINT_PENDENCIAS = "/api/DetalhamentoNegativo"
+ENDPOINT_RENDA = "/api/CadastroPessoaFisicaPlus"
+ENDPOINT_DIVIDA_ATIVA = "/api/PGFNListaDevedoresUniao"
 
 
 class CreditProviderError(Exception):
@@ -146,10 +164,16 @@ class CreditReport(BaseModel):
     score: Optional[int] = None          # Score principal (QUOD)
     score_faixa: str = "indisponivel"    # "alto" | "medio" | "baixo" | "indisponivel"
     score_motivos: List[str] = Field(default_factory=list)
+    capacidade_pagamento: Optional[str] = None   # texto do QUOD
+    perfil: Optional[str] = None                 # texto do QUOD
     rating_bacen: Optional[str] = None   # letra derivada (AA..H) — ver derive_rating_bacen
     scr: Dict[str, Any] = Field(default_factory=dict)          # resumo SCR normalizado
     pendencias: List[Dict[str, Any]] = Field(default_factory=list)  # PEFIN/REFIN normalizadas
     tem_pendencias: bool = False
+    pendencias_resumo: Dict[str, Any] = Field(default_factory=dict)  # status/total do provedor
+    cadastro: Dict[str, Any] = Field(default_factory=dict)  # situação na Receita + óbito
+    renda: Dict[str, Any] = Field(default_factory=dict)         # renda presumida (Cadastro PF Plus)
+    divida_ativa: Dict[str, Any] = Field(default_factory=dict)  # PGFN — dívida ativa da União
     comprovante_url: Optional[str] = None
     consultado_em: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
@@ -170,6 +194,17 @@ def _unwrap(payload: Any) -> Dict[str, Any]:
         if isinstance(inner, dict) and inner:
             return inner
     return payload
+
+
+def _meta(payload: Any) -> Dict[str, Any]:
+    """`metaDados` traz mensagem, custo, saldo e — importante — urlComprovante.
+
+    O comprovante fica aqui, e não dentro de `retorno`.
+    """
+    if not isinstance(payload, dict):
+        return {}
+    meta = payload.get("metaDados") or payload.get("metadados")
+    return meta if isinstance(meta, dict) else {}
 
 
 def _get(d: Dict[str, Any], *names: str, default: Any = None) -> Any:
@@ -207,6 +242,13 @@ def _to_float(value: Any) -> float:
         return 0.0
 
 
+def _txt(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def classify_score_faixa(score: Optional[int]) -> str:
     """Faixas QUOD (§2): 0–600 alto risco · 601–700 médio · 701–1000 baixo."""
     if score is None:
@@ -227,24 +269,30 @@ def classify_score_faixa(score: Optional[int]) -> str:
 # Trata-se de um "rating derivado" — documentado como tal na resposta ao usuário.
 RATING_ORDER = ["AA", "A", "B", "C", "D", "E", "F", "G", "H"]
 
+# Chaves já normalizadas: sem acento e sem a palavra "risco". Assim "Risco Baixo",
+# "Baixo Risco" e "baixo" caem na mesma letra — a Direct Data usa a primeira forma,
+# e casar só a chave literal fazia a faixa ser ignorada.
 _FAIXA_RISCO_TO_RATING = {
     "muito baixo": "AA",
     "baixo": "A",
-    "baixo risco": "A",
     "medio baixo": "B",
-    "médio baixo": "B",
     "medio": "C",
-    "médio": "C",
-    "medio risco": "C",
-    "médio risco": "C",
     "medio alto": "D",
-    "médio alto": "D",
     "alto": "E",
-    "alto risco": "E",
     "muito alto": "G",
     "altissimo": "H",
-    "altíssimo": "H",
 }
+
+
+def _sem_acento(texto: str) -> str:
+    decomposto = unicodedata.normalize("NFKD", texto)
+    return "".join(ch for ch in decomposto if not unicodedata.combining(ch))
+
+
+def _normaliza_faixa_risco(texto: str) -> str:
+    base = _sem_acento(texto).lower()
+    palavras = [p for p in re.sub(r"[^a-z ]", " ", base).split() if p and p != "risco"]
+    return " ".join(palavras)
 
 
 def _rating_from_score(score: Optional[int]) -> Optional[str]:
@@ -275,103 +323,403 @@ def derive_rating_bacen(
 ) -> Optional[str]:
     letras = []
     for op in operacoes or []:
-        letra = _get(op, "classificacaoRisco", "classificacao", "rating", "letra")
+        letra = _get(op, "classificacao_risco", "classificacaoRisco", "classificacao", "rating", "letra")
         if letra:
             letras.append(str(letra).strip())
     pior = _pior_rating(letras)
     if pior:
         return pior
     if faixa_risco:
-        mapped = _FAIXA_RISCO_TO_RATING.get(str(faixa_risco).strip().lower())
+        mapped = _FAIXA_RISCO_TO_RATING.get(_normaliza_faixa_risco(str(faixa_risco)))
         if mapped:
             return mapped
+    # Último recurso: a escala do score do SCR não é a mesma do QUOD, então esta
+    # letra é grosseira. Só entra quando o provedor não classificou a faixa.
     return _rating_from_score(score_scr)
 
 
 # =============================================================================
 # Parsers por produto Direct Data
 # =============================================================================
-def parse_score(payload: Any) -> Dict[str, Any]:
-    data = _unwrap(payload)
-    score = _to_int(_get(data, "score", "pontuacao", "scoreQuod", "pontuacaoScore"))
-    faixa = _get(data, "faixa", "classe", "classificacao")
-    motivos_raw = _get(data, "motivos", "fatores", "razoes", default=[]) or []
+def _escopo_pessoa(data: Dict[str, Any], tipo: str) -> Dict[str, Any]:
+    """A Direct Data aninha o retorno em `pessoaFisica` / `pessoaJuridica`.
+
+    Sem descer nesse nível, os campos "somem" mesmo com a consulta paga.
+    Cai de volta na raiz para aceitar payloads achatados (mock/testes).
+    """
+    preferida = "pessoaFisica" if tipo == "pf" else "pessoaJuridica"
+    for chave in (preferida, "pessoaFisica", "pessoaJuridica"):
+        bloco = _get(data, chave)
+        if isinstance(bloco, dict) and bloco:
+            return bloco
+    return data
+
+
+def _lista_motivos(bloco: Dict[str, Any]) -> List[str]:
     motivos: List[str] = []
-    if isinstance(motivos_raw, list):
-        for m in motivos_raw:
+    bruto = _get(bloco, "motivos", "fatores", "razoes", default=[]) or []
+    if isinstance(bruto, str):
+        bruto = [bruto]
+    if isinstance(bruto, list):
+        for m in bruto:
             if isinstance(m, dict):
-                texto = _get(m, "descricao", "motivo", "texto", "mensagem")
-                if texto:
-                    motivos.append(str(texto).strip())
-            elif m:
-                motivos.append(str(m).strip())
-    elif isinstance(motivos_raw, str) and motivos_raw.strip():
-        motivos.append(motivos_raw.strip())
+                texto = _txt(_get(m, "descricao", "motivo", "texto", "mensagem"))
+            else:
+                texto = _txt(m)
+            if texto:
+                motivos.append(texto)
+    # Quando não há `motivos`, os indicadores de negócio explicam o score.
+    if not motivos:
+        for ind in _get(bloco, "indicadoresNegocio", default=[]) or []:
+            if not isinstance(ind, dict):
+                continue
+            titulo = _txt(_get(ind, "indicador"))
+            risco = _txt(_get(ind, "risco")) or _txt(_get(ind, "status"))
+            if titulo:
+                motivos.append(f"{titulo}: {risco}" if risco else titulo)
+    return motivos
+
+
+def parse_score(payload: Any, tipo: str = "pf") -> Dict[str, Any]:
+    data = _unwrap(payload)
+    bloco = _escopo_pessoa(data, tipo)
+    score = _to_int(_get(bloco, "score", "pontuacao", "scoreQuod", "pontuacaoScore"))
+    faixa = _get(bloco, "faixaScore", "faixa", "classe", "classificacao")
     return {
         "score": score,
         "faixa": classify_score_faixa(score),
-        "faixa_provedor": str(faixa).strip() if faixa else None,
-        "motivos": motivos[:6],
+        "faixa_provedor": _txt(faixa),
+        "motivos": _lista_motivos(bloco)[:6],
+        "capacidade_pagamento": _txt(_get(bloco, "capacidadePagamento")),
+        "perfil": _txt(_get(bloco, "perfil")),
     }
+
+
+def _parse_carteira(bruto: Any) -> Dict[str, float]:
+    """`carteiraCredito` é um objeto (total/limite/prejuizo/vencer/vencido)."""
+    if not isinstance(bruto, dict):
+        return {}
+    return {
+        campo: _to_float(_get(bruto, campo))
+        for campo in ("total", "limite", "prejuizo", "vencer", "vencido")
+    }
+
+
+def _parse_modalidades(itens: Any) -> List[Dict[str, Any]]:
+    """Normaliza `modalidades`, onde cada bloco de valor é um objeto com `total`."""
+    if isinstance(itens, dict):
+        itens = [itens]
+    if not isinstance(itens, list):
+        return []
+
+    def _total(valor: Any) -> float:
+        if isinstance(valor, dict):
+            return _to_float(_get(valor, "total"))
+        return _to_float(valor)
+
+    resultado: List[Dict[str, Any]] = []
+    for m in itens:
+        if not isinstance(m, dict):
+            continue
+        resultado.append(
+            {
+                "modalidade": _txt(_get(m, "descricaoModalidade", "modalidade", "descricao")),
+                "codigo": _txt(_get(m, "codigoModalidade")),
+                "limite_credito": _to_float(_get(m, "limiteCredito")),
+                "a_vencer": _total(_get(m, "aVencer")),
+                "vencido": _total(_get(m, "vencido")),
+                "prejuizo": _total(_get(m, "prejuizo")),
+                # O SCR real não traz letra por modalidade; fica para payloads antigos.
+                "classificacao_risco": _txt(
+                    _get(m, "classificacaoRisco", "classificacao", "rating")
+                ),
+            }
+        )
+    return resultado
 
 
 def parse_scr(payload: Any) -> Dict[str, Any]:
     data = _unwrap(payload)
     score_scr = _to_int(_get(data, "score", "scoreScr", "pontuacao"))
     faixa_risco = _get(data, "faixaRisco", "faixa", "risco")
-    carteira = _get(data, "carteiraCredito", "carteira", default=[]) or []
-    operacoes = _get(data, "operacoes", "operacoesCredito", "detalheOperacoes", default=[]) or []
-    if isinstance(operacoes, dict):
-        operacoes = [operacoes]
-    responsabilidade = _to_float(
-        _get(data, "responsabilidadeTotal", "valorTotal", "totalResponsabilidade", "valorVencer")
+    # `modalidades` é o nome real; os demais cobrem payloads antigos.
+    modalidades = _parse_modalidades(
+        _get(data, "modalidades", "operacoes", "operacoesCredito", "detalheOperacoes", default=[])
     )
-    qtd_instituicoes = _to_int(
-        _get(data, "quantidadeInstituicoes", "qtdInstituicoes", "numeroInstituicoes")
+    qtd_operacoes = _to_int(_get(data, "quantidadeOperacoes", "qtdOperacoes"))
+    if qtd_operacoes is None:
+        qtd_operacoes = len(modalidades)
+    carteira = _parse_carteira(_get(data, "carteiraCredito", "carteira"))
+    risco_total = _to_float(_get(data, "riscoTotal"))
+    # `responsabilidadeTotal` pode voltar vazio mesmo com operações ativas; nesse
+    # caso o valor real está em `riscoTotal`/`carteiraCredito.total`. Exibir 0 aqui
+    # esconderia a dívida do usuário, que é justamente o ponto do relatório.
+    responsabilidade = (
+        _to_float(_get(data, "responsabilidadeTotal", "valorTotal", "totalResponsabilidade"))
+        or risco_total
+        or carteira.get("total", 0.0)
+    )
+    # O `total` da carteira soma o limite ainda não usado; a dívida de fato é o saldo.
+    divida_atual = sum(
+        carteira.get(campo, 0.0) or 0.0 for campo in ("vencer", "vencido", "prejuizo")
     )
     return {
         "score": score_scr,
-        "faixa_risco": str(faixa_risco).strip() if faixa_risco else None,
+        "faixa_risco": _txt(faixa_risco),
+        "score_observacao": _txt(_get(data, "scoreObservacao")),
         "responsabilidade_total": responsabilidade,
-        "quantidade_instituicoes": qtd_instituicoes,
-        "quantidade_operacoes": len(operacoes) if isinstance(operacoes, list) else 0,
-        "carteira": carteira if isinstance(carteira, list) else [],
-        "operacoes": operacoes if isinstance(operacoes, list) else [],
+        "divida_atual": divida_atual,
+        "risco_total": risco_total,
+        "quantidade_instituicoes": _to_int(
+            _get(data, "quantidadeInstituicoes", "qtdInstituicoes", "numeroInstituicoes")
+        ),
+        "quantidade_operacoes": qtd_operacoes,
+        "data_inicio_relacionamento": _txt(_get(data, "dataInicioRelacionamento")),
+        "carteira": carteira,
+        "modalidades": modalidades,
     }
 
 
-def parse_pendencias(payload: Any) -> List[Dict[str, Any]]:
-    """Normaliza PEFIN/REFIN (negativações). Endpoint/payload a confirmar (§2)."""
+def _bloco_pendencias(payload: Any, tipo: str) -> Dict[str, Any]:
+    """Chega em `retorno.pessoa{Fisica,Juridica}.pendenciaFinanceira`.
+
+    ATENÇÃO: `pendenciaFinanceira` é um *container* (tem `status` e
+    `totalPendencia` mais as listas de ocorrências), não uma ocorrência. Tratá-lo
+    como item cria uma negativação fantasma para quem tem ficha limpa.
+    """
     data = _unwrap(payload)
-    itens = (
-        _get(data, "pendencias", "negativacoes", "ocorrencias", "registros", "anotacoes", default=None)
+    bloco = _escopo_pessoa(data, tipo)
+    interno = _get(bloco, "pendenciaFinanceira", "pendenciasFinanceiras")
+    return interno if isinstance(interno, dict) else bloco
+
+
+def _pendencias_de_protestos(itens: Any) -> List[Dict[str, Any]]:
+    resultado = []
+    for p in itens:
+        if not isinstance(p, dict):
+            continue
+        cartorios = _get(p, "cartorios", default=[]) or []
+        nomes = [
+            _txt(_get(c, "nome")) for c in cartorios if isinstance(c, dict) and _txt(_get(c, "nome"))
+        ]
+        resultado.append({
+            "tipo": "Protesto",
+            "credor": ", ".join(nomes) or None,
+            "valor": _to_float(_get(p, "valorTotal", "valorProtestado", "valor")),
+            "data_ocorrencia": None,
+            "situacao": _txt(_get(p, "situacao")),
+            "contrato": None,
+            "detalhe": _txt(_get(p, "observacao")),
+        })
+    return resultado
+
+
+def _pendencias_de_acoes(itens: Any) -> List[Dict[str, Any]]:
+    resultado = []
+    for a in itens:
+        if not isinstance(a, dict):
+            continue
+        resultado.append({
+            "tipo": _txt(_get(a, "tipoProcesso")) or "Ação judicial",
+            "credor": _txt(_get(a, "autorProcesso")),
+            "valor": _to_float(_get(a, "valor")),
+            "data_ocorrencia": _txt(_get(a, "dataAjuizamento")),
+            "situacao": _txt(_get(a, "status")),
+            "contrato": _txt(_get(a, "numeroProcessoPrincipal", "numeroProcessoAntigo")),
+            "detalhe": _txt(_get(a, "comarca")) or _txt(_get(a, "cidade")),
+        })
+    return resultado
+
+
+def _pendencias_de_recuperacoes(itens: Any) -> List[Dict[str, Any]]:
+    resultado = []
+    for r in itens:
+        if not isinstance(r, dict):
+            continue
+        resultado.append({
+            "tipo": "Recuperação judicial / falência",
+            "credor": _txt(_get(r, "nomeEmpresa")),
+            "valor": _to_float(_get(r, "valor")),
+            "data_ocorrencia": _txt(_get(r, "dataOcorrencia", "dataInclusao")),
+            "situacao": _txt(_get(r, "status")),
+            "contrato": _txt(_get(r, "numeroContrato")),
+            "detalhe": _txt(_get(r, "motivo")),
+        })
+    return resultado
+
+
+def _pendencias_de_cheques(itens: Any) -> List[Dict[str, Any]]:
+    resultado = []
+    for c in itens:
+        if not isinstance(c, dict):
+            continue
+        qtd = _to_int(_get(c, "quantidadeOcorrencia"))
+        agencia = _txt(_get(c, "nomeAgencia"))
+        banco = _txt(_get(c, "codigoBanco"))
+        resultado.append({
+            "tipo": "Cheque sem fundo",
+            "credor": agencia or (f"Banco {banco}" if banco else None),
+            # Este produto informa a quantidade de ocorrências, não o valor.
+            "valor": 0.0,
+            "data_ocorrencia": _txt(_get(c, "dataUltimaOcorrencia")),
+            "situacao": f"{qtd} ocorrência(s)" if qtd else None,
+            "contrato": _txt(_get(c, "numeroAgencia")),
+            "detalhe": None,
+        })
+    return resultado
+
+
+# bucket real -> normalizador específico (cada um tem nomes de campo próprios)
+_PENDENCIA_BUCKETS = {
+    "protestos": _pendencias_de_protestos,
+    "acoesJudiciais": _pendencias_de_acoes,
+    "recuperacoesJudiciaisFalencia": _pendencias_de_recuperacoes,
+    "chequesSemFundo": _pendencias_de_cheques,
+}
+
+
+def parse_pendencias(payload: Any, tipo: str = "pf") -> List[Dict[str, Any]]:
+    """Normaliza as negativações do Detalhamento Negativo QUOD.
+
+    Atenção: os protestos desse produto cobrem apenas SP — abrangência nacional
+    exige o IEPTB (ver docs/integracao-direct-data.md).
+    """
+    bloco = _bloco_pendencias(payload, tipo)
+    resultado: List[Dict[str, Any]] = []
+    for chave, normalizador in _PENDENCIA_BUCKETS.items():
+        itens = _get(bloco, chave, default=[]) or []
+        if isinstance(itens, dict):
+            itens = [itens]
+        if isinstance(itens, list):
+            resultado.extend(normalizador(itens))
+    return resultado
+
+
+def parse_pendencias_resumo(payload: Any, tipo: str = "pf") -> Dict[str, Any]:
+    """Status agregado do Detalhamento Negativo (ex.: "Não Consta Pendência").
+
+    Permite dizer "consultamos e não consta" em vez de exibir uma linha vazia.
+    """
+    bloco = _bloco_pendencias(payload, tipo)
+    return {
+        "status": _txt(_get(bloco, "status")),
+        "total": _to_int(_get(bloco, "totalPendencia")) or 0,
+    }
+
+
+def parse_cadastro(payload: Any) -> Dict[str, Any]:
+    """Situação do CPF na Receita Federal e indicativo de óbito (Cadastro PF Plus).
+
+    Este é o que justifica a consulta: são **fatos verificáveis**, ao contrário da
+    renda presumida que vem no mesmo payload. É exatamente o que a versão Básica
+    (R$ 0,16) não traz — o delta de R$ 0,20 do Plus se paga só com isto.
+    Um CPF suspenso/pendente barra crédito independente do score.
+    """
+    data = _unwrap(payload)
+    situacao = _txt(_get(data, "situacaoCadastral"))
+    return {
+        "situacao_cadastral": situacao,
+        "data_situacao": _txt(_get(data, "dataSituacaoCadastral")),
+        "obito": bool(_get(data, "obito", default=False)),
+        "regular": _sem_acento(situacao or "").strip().lower() == "regular",
+    }
+
+
+def parse_renda(payload: Any) -> Dict[str, Any]:
+    """Renda **presumida** e perfil socioeconômico (Cadastro PF Plus).
+
+    `rendaEstimada` é inferência estatística do bureau (perfil, região, domicílio),
+    não renda declarada — costuma divergir bastante do real. Por isso trazemos
+    junto `confiabilidade` e a composição do domicílio: no app o valor entra como
+    sugestão a ser confirmada pelo usuário, nunca como fato.
+    """
+    data = _unwrap(payload)
+    domicilio = _get(data, "perfilDomiciliar", "domicilio", default={}) or {}
+    if not isinstance(domicilio, dict):
+        domicilio = {}
+    return {
+        "renda_estimada": _to_float(_get(data, "rendaEstimada", "renda", "rendaPresumida")),
+        "faixa_salarial": _txt(_get(data, "rendaFaixaSalarial", "faixaSalarial", "faixaRenda")),
+        "classe_social": _txt(
+            _get(data, "classeSocial") or _get(domicilio, "classeSocialFamiliar")
+        ),
+        "renda_domiciliar": _to_float(_get(domicilio, "rendaDomiciliar")),
+        "renda_per_capita": _to_float(_get(domicilio, "rendaPerCapita")),
+        "faixa_renda_per_capita": _txt(_get(domicilio, "faixaRendaPerCapita")),
+        "confiabilidade": _txt(_get(domicilio, "confiabilidade")),
+        "moradores": _to_int(_get(domicilio, "quantidadeMoradores")),
+        "adultos": _to_int(_get(domicilio, "quantidadeAdultos")),
+        "menores": _to_int(_get(domicilio, "quantidadeMenores")),
+        "tipo_domicilio": _txt(_get(domicilio, "tipoDomicilio")),
+        "ocupacao": _txt(_get(data, "cbo")),
+    }
+
+
+def parse_divida_ativa(payload: Any) -> Dict[str, Any]:
+    """Dívida ativa da União (PGFN — Lista de Devedores)."""
+    data = _unwrap(payload)
+    itens = _get(
+        data, "dividas", "debitos", "listaDevedores", "devedores", "registros", default=None
     )
-    if itens is None and isinstance(data, list):
-        itens = data
     if isinstance(itens, dict):
         itens = [itens]
     if not isinstance(itens, list):
-        return []
-    result: List[Dict[str, Any]] = []
+        itens = []
+
+    normalizados: List[Dict[str, Any]] = []
+    total = 0.0
     for item in itens:
         if not isinstance(item, dict):
             continue
-        result.append(
+        valor = _to_float(_get(item, "valor", "valorConsolidado", "montante", "valorTotal"))
+        total += valor
+        normalizados.append(
             {
-                "tipo": _get(item, "tipo", "natureza", "modalidade", default="PEFIN/REFIN"),
-                "credor": _get(item, "credor", "empresa", "informante", "razaoSocial"),
-                "valor": _to_float(_get(item, "valor", "valorPendencia", "montante")),
-                "data_ocorrencia": _get(item, "dataOcorrencia", "data", "dataInclusao"),
-                "situacao": _get(item, "situacao", "status"),
-                "contrato": _get(item, "contrato", "numeroContrato"),
+                "valor": valor,
+                "situacao": _txt(_get(item, "situacao", "status")),
+                "natureza": _txt(_get(item, "naturezaDivida", "natureza", "tipoDivida", "tipo")),
+                "orgao": _txt(_get(item, "orgao", "orgaoResponsavel", "unidade")),
+                "inscricao": _txt(_get(item, "numeroInscricao", "inscricao", "numero")),
             }
         )
-    return result
+
+    possui = _get(data, "possuiDivida", "possuiDebitos", "temDivida")
+    return {
+        "possui_divida": bool(normalizados) if possui is None else bool(possui),
+        "quantidade": len(normalizados),
+        "valor_total": round(total, 2),
+        "itens": normalizados[:20],
+    }
 
 
 def _mesano_atual() -> str:
     now = datetime.now(timezone.utc)
     return f"{now.month:02d}{now.year}"
+
+
+def _scr_mesano_param() -> Dict[str, str]:
+    """MESANO do SCR — opcional na API e, por padrão, omitido.
+
+    O SCR é fechado mensalmente com defasagem: pedir o mês corrente faz a
+    consulta ser recusada (nem chega a debitar crédito). Omitindo, a Direct Data
+    devolve a competência mais recente disponível. Use `DIRECTD_SCR_MESANO`
+    (formato MMAAAA, ou "atual") só para forçar uma competência específica.
+    """
+    valor = (os.environ.get("DIRECTD_SCR_MESANO", "") or "").strip()
+    if not valor:
+        return {}
+    return {"MESANO": _mesano_atual() if valor.lower() == "atual" else valor}
+
+
+def _flag(name: str, default: bool = True) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        return default
+    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _endpoint(name: str, default: str) -> str:
+    return (os.environ.get(name, "") or "").strip() or default
 
 
 # =============================================================================
@@ -395,13 +743,24 @@ async def _directd_get(
         logger.warning("Direct Data %s: erro de conexão", label)
         raise CreditProviderError("Não foi possível falar com o provedor de crédito.") from exc
 
-    if response.status_code == 401 or response.status_code == 403:
-        raise CreditProviderError("Token da Direct Data inválido ou sem permissão.")
-    if response.status_code == 402:
-        raise CreditProviderError("Saldo de créditos insuficiente para a consulta.")
-    if response.status_code >= 500:
-        raise CreditProviderError("Provedor de crédito indisponível no momento.")
     if response.status_code >= 400:
+        # A mensagem da Direct Data é o que diz de fato o que deu errado; sem ela
+        # a falha vira um "indisponível" opaco. Não contém o documento.
+        try:
+            motivo = _txt(_get(_meta(response.json()), "mensagem", "resultado"))
+        except ValueError:
+            motivo = None
+        logger.warning(
+            "Direct Data %s falhou: HTTP %s%s",
+            label, response.status_code, f" — {motivo}" if motivo else "",
+        )
+        if response.status_code == 401:
+            raise CreditProviderError("Token da Direct Data inválido (ou IP não liberado).")
+        # Na Direct Data, 403 significa saldo indisponível — não falta de permissão.
+        if response.status_code in (402, 403):
+            raise CreditProviderError("Saldo de créditos insuficiente para a consulta.")
+        if response.status_code >= 500:
+            raise CreditProviderError("Provedor de crédito indisponível no momento.")
         raise CreditProviderError("Consulta de crédito recusada pelo provedor.")
 
     try:
@@ -426,27 +785,51 @@ async def _gerar_relatorio_directdata(documento: str, tipo: str) -> CreditReport
     doc_param = "CPF" if tipo == "pf" else "CNPJ"
     base_params = {doc_param: digits, "Token": token}
 
-    pendencias_endpoint = os.environ.get("DIRECTD_PENDENCIAS_ENDPOINT", "").strip()
-    pendencias_enabled = os.environ.get(
-        "DIRECTD_PENDENCIAS_ENABLED", "true"
-    ).lower() in ("1", "true", "yes") and bool(pendencias_endpoint)
+    pendencias_endpoint = _endpoint("DIRECTD_PENDENCIAS_ENDPOINT", ENDPOINT_PENDENCIAS)
+    pendencias_enabled = _flag("DIRECTD_PENDENCIAS_ENABLED") and bool(pendencias_endpoint)
+
+    cadastro_endpoint = _endpoint("DIRECTD_CADASTRO_PF_ENDPOINT", ENDPOINT_RENDA)
+    # Uma consulta (Cadastro PF Plus) devolve situação na Receita + renda presumida,
+    # e só existe para pessoa física. `DIRECTD_RENDA_ENABLED` é o nome antigo da flag.
+    cadastro_enabled = (
+        tipo == "pf"
+        and _flag("DIRECTD_CADASTRO_PF_ENABLED", _flag("DIRECTD_RENDA_ENABLED"))
+        and bool(cadastro_endpoint)
+    )
+
+    divida_endpoint = _endpoint("DIRECTD_DIVIDA_ATIVA_ENDPOINT", ENDPOINT_DIVIDA_ATIVA)
+    divida_enabled = _flag("DIRECTD_DIVIDA_ATIVA_ENABLED") and bool(divida_endpoint)
 
     avisos: List[str] = []
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         tasks = {
-            "score": _directd_get(client, base_url, "/api/Score", dict(base_params), "Score"),
+            "score": _directd_get(
+                client,
+                base_url,
+                _endpoint("DIRECTD_SCORE_ENDPOINT", ENDPOINT_SCORE),
+                dict(base_params),
+                "Score",
+            ),
             "scr": _directd_get(
                 client,
                 base_url,
-                "/api/SCRBacenDetalhada",
-                {**base_params, "MESANO": _mesano_atual()},
+                _endpoint("DIRECTD_SCR_ENDPOINT", ENDPOINT_SCR),
+                {**base_params, **_scr_mesano_param()},
                 "SCR",
             ),
         }
         if pendencias_enabled:
             tasks["pendencias"] = _directd_get(
                 client, base_url, pendencias_endpoint, dict(base_params), "Pendencias"
+            )
+        if cadastro_enabled:
+            tasks["cadastro_pf"] = _directd_get(
+                client, base_url, cadastro_endpoint, dict(base_params), "CadastroPF"
+            )
+        if divida_enabled:
+            tasks["divida_ativa"] = _directd_get(
+                client, base_url, divida_endpoint, dict(base_params), "DividaAtiva"
             )
 
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
@@ -458,7 +841,7 @@ async def _gerar_relatorio_directdata(documento: str, tipo: str) -> CreditReport
         raise score_res if isinstance(score_res, CreditProviderError) else CreditProviderError(
             "Não foi possível obter o score de crédito."
         )
-    score_norm = parse_score(score_res)
+    score_norm = parse_score(score_res, tipo)
 
     scr_norm: Dict[str, Any] = {}
     scr_res = raw.get("scr")
@@ -468,6 +851,7 @@ async def _gerar_relatorio_directdata(documento: str, tipo: str) -> CreditReport
         scr_norm = parse_scr(scr_res)
 
     pendencias: List[Dict[str, Any]] = []
+    pendencias_resumo: Dict[str, Any] = {}
     if not pendencias_enabled:
         avisos.append("Consulta de PEFIN/REFIN não habilitada.")
     else:
@@ -475,14 +859,39 @@ async def _gerar_relatorio_directdata(documento: str, tipo: str) -> CreditReport
         if isinstance(pend_res, Exception):
             avisos.append("Consulta de negativações (PEFIN/REFIN) indisponível.")
         else:
-            pendencias = parse_pendencias(pend_res)
+            pendencias = parse_pendencias(pend_res, tipo)
+            pendencias_resumo = parse_pendencias_resumo(pend_res, tipo)
+
+    renda: Dict[str, Any] = {}
+    cadastro: Dict[str, Any] = {}
+    if cadastro_enabled:
+        cadastro_res = raw.get("cadastro_pf")
+        if isinstance(cadastro_res, Exception):
+            avisos.append("Situação do CPF na Receita Federal indisponível nesta consulta.")
+        else:
+            # Mesma consulta devolve os dois blocos.
+            cadastro = parse_cadastro(cadastro_res)
+            renda = parse_renda(cadastro_res)
+
+    divida_ativa: Dict[str, Any] = {}
+    if divida_enabled:
+        divida_res = raw.get("divida_ativa")
+        if isinstance(divida_res, Exception):
+            avisos.append("Consulta de dívida ativa da União (PGFN) indisponível.")
+        else:
+            divida_ativa = parse_divida_ativa(divida_res)
 
     rating = derive_rating_bacen(
-        scr_norm.get("operacoes", []),
+        scr_norm.get("modalidades", []),
         scr_norm.get("faixa_risco"),
         scr_norm.get("score"),
     )
-    comprovante = _get(_unwrap(scr_res) if not isinstance(scr_res, Exception) else {}, "urlComprovante", "comprovante")
+    # O comprovante vem em metaDados (não em `retorno`) e só o SCR gera PDF.
+    comprovante = _get(
+        _meta(scr_res) if not isinstance(scr_res, Exception) else {},
+        "urlComprovante",
+        "comprovante",
+    )
 
     logger.info(
         "Relatório de crédito gerado (directdata) doc=%s tipo=%s score=%s rating=%s pendencias=%d",
@@ -495,12 +904,16 @@ async def _gerar_relatorio_directdata(documento: str, tipo: str) -> CreditReport
         score=score_norm.get("score"),
         score_faixa=score_norm.get("faixa", "indisponivel"),
         score_motivos=score_norm.get("motivos", []),
+        capacidade_pagamento=score_norm.get("capacidade_pagamento"),
+        perfil=score_norm.get("perfil"),
         rating_bacen=rating,
-        scr={k: v for k, v in scr_norm.items() if k not in ("operacoes",)} | {
-            "quantidade_operacoes": scr_norm.get("quantidade_operacoes", 0),
-        },
+        scr={k: v for k, v in scr_norm.items() if k != "modalidades"},
         pendencias=pendencias,
         tem_pendencias=bool(pendencias),
+        pendencias_resumo=pendencias_resumo,
+        cadastro=cadastro,
+        renda=renda,
+        divida_ativa=divida_ativa,
         comprovante_url=str(comprovante).strip() if comprovante else None,
         fonte="directdata",
         avisos=avisos,
@@ -511,58 +924,134 @@ async def _gerar_relatorio_directdata(documento: str, tipo: str) -> CreditReport
 # Provider: mock (não gasta crédito — para desenvolver o front)
 # =============================================================================
 def _mock_payloads(tipo: str) -> Dict[str, Any]:
+    """Payloads de demonstração — espelham a estrutura REAL da Direct Data.
+
+    Os aninhamentos (`pessoaFisica`, `pendenciaFinanceira`) são justamente onde
+    o mapeamento erra, então o mock precisa reproduzi-los para ter valor.
+    """
+    pessoa = "pessoaFisica" if tipo == "pf" else "pessoaJuridica"
     return {
         "score": {
+            "metaDados": {"mensagem": "Sucesso"},
             "retorno": {
-                "score": 742,
-                "classe": "B",
-                "motivos": [
-                    {"descricao": "Bom histórico de pagamentos"},
-                    {"descricao": "Baixo comprometimento de renda"},
-                ],
-            }
+                "documentoConsultado": "***",
+                pessoa: {
+                    "score": 742,
+                    "faixaScore": "Baixo índice de inadimplência",
+                    "capacidadePagamento": "Média",
+                    "perfil": "Consumidor adimplente",
+                    "motivos": [
+                        "Bom histórico de pagamentos",
+                        "Baixo comprometimento de renda",
+                    ],
+                },
+            },
         },
         "scr": {
-            "retorno": {
-                "score": 680,
-                "faixaRisco": "Médio baixo",
-                "responsabilidadeTotal": 18450.75,
-                "quantidadeInstituicoes": 3,
-                "carteiraCredito": [
-                    {"modalidade": "Cartão de crédito", "valor": 4200.00},
-                    {"modalidade": "Empréstimo pessoal", "valor": 14250.75},
-                ],
-                "operacoes": [
-                    {"modalidade": "Cartão de crédito", "classificacaoRisco": "A"},
-                    {"modalidade": "Empréstimo pessoal", "classificacaoRisco": "C"},
-                ],
+            "metaDados": {
+                "mensagem": "Sucesso",
                 "urlComprovante": "https://exemplo.directd.com.br/comprovante/mock.pdf",
-            }
+            },
+            "retorno": {
+                "score": "680",
+                "faixaRisco": "Médio baixo",
+                "responsabilidadeTotal": "R$ 18.450,75",
+                "quantidadeInstituicoes": 3,
+                "quantidadeOperacoes": 2,
+                "carteiraCredito": {
+                    "total": "R$ 18.450,75",
+                    "limite": "R$ 6.000,00",
+                    "prejuizo": "R$ 0,00",
+                    "vencer": "R$ 17.200,75",
+                    "vencido": "R$ 1.250,00",
+                },
+                "modalidades": [
+                    {
+                        "descricaoModalidade": "Cartão de crédito",
+                        "codigoModalidade": "0203",
+                        "limiteCredito": "R$ 6.000,00",
+                        "aVencer": {"total": "R$ 4.200,00"},
+                        "vencido": {"total": "R$ 0,00"},
+                        "prejuizo": {"total": "R$ 0,00"},
+                    },
+                    {
+                        "descricaoModalidade": "Empréstimo pessoal",
+                        "codigoModalidade": "0401",
+                        "aVencer": {"total": "R$ 13.000,75"},
+                        "vencido": {"total": "R$ 1.250,00"},
+                        "prejuizo": {"total": "R$ 0,00"},
+                    },
+                ],
+            },
         },
         "pendencias": {
+            "metaDados": {"mensagem": "Sucesso"},
             "retorno": {
-                "pendencias": [
-                    {
-                        "tipo": "PEFIN",
-                        "credor": "Loja Exemplo LTDA",
-                        "valor": 349.90,
-                        "dataOcorrencia": "2026-03-12",
-                        "situacao": "Em aberto",
-                        "contrato": "CT-99182",
+                pessoa: {
+                    "pendenciaFinanceira": {
+                        "status": "Consta Pendência",
+                        "totalPendencia": 2,
+                        "protestos": [
+                            {
+                                "situacao": "Em aberto",
+                                "valorTotal": 1200.00,
+                                "cartorios": [
+                                    {"nome": "3º Ofício de Notas", "cidade": "São Paulo",
+                                     "quantidadeProtestos": 1, "valorProtestado": 1200.00}
+                                ],
+                                "observacao": "Protesto registrado em SP",
+                            }
+                        ],
+                        "acoesJudiciais": [
+                            {
+                                "numeroProcessoPrincipal": "1234567-89.2025.8.26.0100",
+                                "autorProcesso": "Loja Exemplo LTDA",
+                                "tipoProcesso": "Execução de título",
+                                "status": "Em andamento",
+                                "valor": 349.90,
+                                "dataAjuizamento": "12/03/2026",
+                                "comarca": "São Paulo",
+                            }
+                        ],
+                        "recuperacoesJudiciaisFalencia": [],
+                        "chequesSemFundo": [],
                     }
-                ]
-            }
+                }
+            },
+        },
+        "renda": {
+            "metaDados": {"mensagem": "Sucesso"},
+            "retorno": {
+                "rendaEstimada": "4200,00",
+                "rendaFaixaSalarial": "De 3 a 5 salários mínimos",
+                "classeSocial": "C1",
+                "situacaoCadastral": "Regular",
+                "obito": False,
+                "perfilDomiciliar": {
+                    "rendaDomiciliar": "6800,00",
+                    "rendaPerCapita": "2266,67",
+                    "classeSocialFamiliar": "C1",
+                },
+            },
+        },
+        "divida_ativa": {
+            "metaDados": {"mensagem": "Sucesso"},
+            "retorno": {"possuiDivida": False, "dividas": []},
         },
     }
 
 
 async def _gerar_relatorio_mock(documento: str, tipo: str) -> CreditReport:
     payloads = _mock_payloads(tipo)
-    score_norm = parse_score(payloads["score"])
+    score_norm = parse_score(payloads["score"], tipo)
     scr_norm = parse_scr(payloads["scr"])
-    pendencias = parse_pendencias(payloads["pendencias"])
+    pendencias = parse_pendencias(payloads["pendencias"], tipo)
+    pendencias_resumo = parse_pendencias_resumo(payloads["pendencias"], tipo)
+    renda = parse_renda(payloads["renda"]) if tipo == "pf" else {}
+    cadastro = parse_cadastro(payloads["renda"]) if tipo == "pf" else {}
+    divida_ativa = parse_divida_ativa(payloads["divida_ativa"])
     rating = derive_rating_bacen(
-        scr_norm.get("operacoes", []),
+        scr_norm.get("modalidades", []),
         scr_norm.get("faixa_risco"),
         scr_norm.get("score"),
     )
@@ -575,17 +1064,16 @@ async def _gerar_relatorio_mock(documento: str, tipo: str) -> CreditReport:
         score=score_norm.get("score"),
         score_faixa=score_norm.get("faixa", "indisponivel"),
         score_motivos=score_norm.get("motivos", []),
+        capacidade_pagamento=score_norm.get("capacidade_pagamento"),
+        perfil=score_norm.get("perfil"),
         rating_bacen=rating,
-        scr={
-            "score": scr_norm.get("score"),
-            "faixa_risco": scr_norm.get("faixa_risco"),
-            "responsabilidade_total": scr_norm.get("responsabilidade_total"),
-            "quantidade_instituicoes": scr_norm.get("quantidade_instituicoes"),
-            "quantidade_operacoes": scr_norm.get("quantidade_operacoes"),
-            "carteira": scr_norm.get("carteira", []),
-        },
+        scr={k: v for k, v in scr_norm.items() if k != "modalidades"},
         pendencias=pendencias,
         tem_pendencias=bool(pendencias),
+        pendencias_resumo=pendencias_resumo,
+        cadastro=cadastro,
+        renda=renda,
+        divida_ativa=divida_ativa,
         comprovante_url="https://exemplo.directd.com.br/comprovante/mock.pdf",
         fonte="mock",
         avisos=["Relatório de demonstração (provedor mock) — nenhum crédito consumido."],
