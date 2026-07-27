@@ -1,0 +1,49 @@
+...................s...............F....F..F.....E.EF                    [100%]
+==================================== ERRORS ====================================
+_______________ ERROR at setup of test_checkout_session_created ________________
+tests/backend_test.py:58: in created_session
+    assert r.status_code == 200, r.text
+E   AssertionError: {"detail":"Stripe session failed: Invalid API Key provided: sk_test_****gent"}
+E   assert 503 == 200
+E    +  where 503 = <Response [503]>.status_code
+____________ ERROR at setup of test_checkout_status_returns_unpaid _____________
+tests/backend_test.py:58: in created_session
+    assert r.status_code == 200, r.text
+E   AssertionError: {"detail":"Stripe session failed: Invalid API Key provided: sk_test_****gent"}
+E   assert 503 == 200
+E    +  where 503 = <Response [503]>.status_code
+=================================== FAILURES ===================================
+__________________________ test_checkout_still_works ___________________________
+tests/test_auth_admin.py:149: in test_checkout_still_works
+    assert r.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503]>.status_code
+_________________ test_fire_next_advances_step_and_marks_sent __________________
+tests/test_drip_v15.py:94: in test_fire_next_advances_step_and_marks_sent
+    assert j["sent_this_run"] >= 1
+E   assert 0 >= 1
+_________________ test_drip_cancelled_when_lead_becomes_buyer __________________
+tests/test_drip_v15.py:134: in test_drip_cancelled_when_lead_becomes_buyer
+    assert r2.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503]>.status_code
+_______________________ test_checkout_all_three_packages _______________________
+tests/backend_test.py:91: in test_checkout_all_three_packages
+    assert r.status_code == 200, f"{pkg_id}: {r.text}"
+E   AssertionError: starter: {"detail":"Stripe session failed: Invalid API Key provided: sk_test_****gent"}
+E   assert 503 == 200
+E    +  where 503 = <Response [503]>.status_code
+=============================== warnings summary ===============================
+tests/test_drip_v15.py::test_creating_lead_schedules_5_emails
+  /home/ubuntu/.local/lib/python3.12/site-packages/motor/core.py:154: DeprecationWarning: There is no current event loop
+    self._io_loop = self._framework.get_event_loop()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_auth_admin.py::test_checkout_still_works - assert 503 == 200
+FAILED tests/test_drip_v15.py::test_fire_next_advances_step_and_marks_sent - ...
+FAILED tests/test_drip_v15.py::test_drip_cancelled_when_lead_becomes_buyer - ...
+FAILED tests/backend_test.py::test_checkout_all_three_packages - AssertionErr...
+ERROR tests/backend_test.py::test_checkout_session_created - AssertionError: ...
+ERROR tests/backend_test.py::test_checkout_status_returns_unpaid - AssertionE...
+4 failed, 46 passed, 1 skipped, 1 warning, 2 errors in 11.96s

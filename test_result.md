@@ -101,3 +101,143 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+## user_problem_statement: Teste geral end-to-end passando por todas as funcionalidades do FinPremium
+
+## backend:
+  - task: "Packages / Leads / Checkout API"
+    implemented: true
+    working: "partial"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "partial"
+        agent: "main"
+        comment: "packages+leads OK local. Checkout retorna 503 com sk_test_emergent inválida (bloqueio de ambiente, não regressão de código)."
+
+  - task: "Auth JWT + Admin panel API"
+    implemented: true
+    working: true
+    file: "backend/auth_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "login/me/logout/admin dashboard/leads/transactions/drip OK no E2E local (test_auth_admin + test_e2e_full)."
+
+  - task: "Financial state + Transactions CRUD"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET/PUT financial-state, dashboard/summary, transactions create/update/delete/bulk OK."
+
+  - task: "Credit analysis (mock provider)"
+    implemented: true
+    working: true
+    file: "backend/credit_provider.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Unit 100% + /credit/price /quote /orders no E2E. Checkout Stripe de crédito não exercitado (mesma chave inválida)."
+
+  - task: "Drip campaign"
+    implemented: true
+    working: "partial"
+    file: "backend/drip_service.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "partial"
+        agent: "main"
+        comment: "Lead agenda 5 emails; admin/drip lista OK; fire-next marca failed/send_failed sem RESEND_API_KEY."
+
+  - task: "Unit suite (provider/vision/audio/twilio/scr/routes/state)"
+    implemented: true
+    working: true
+    file: "backend/tests/"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "104/104 passed (pytest -n 0)."
+
+## frontend:
+  - task: "Funil público (venda/calculadora/bonus)"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/SalesPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "UI E2E PASS — landing, packages, FAQ, calculadora, bonus CTA."
+
+  - task: "Auth cliente + Onboarding"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/ClientAuth.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Signup com CPF, onboarding 3 passos, redirect ao dashboard OK."
+
+  - task: "App pages (dashboard/lancamentos/orcamento/dividas/metas/credito/projecao/escopo)"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "19/19 fluxos UI PASS incluindo Share Story e CSV modal open/close."
+
+  - task: "Admin UI"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/AdminDashboard.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Login admin + 4 tabs (visão/leads/vendas/drip) + logout OK."
+
+## metadata:
+  created_by: "main_agent"
+  version: "1.6-e2e-geral"
+  test_sequence: 6
+  run_ui: true
+
+## test_plan:
+  current_focus: []
+  stuck_tasks: []
+  test_all: true
+  test_priority: "sequential"
+
+## agent_communication:
+  - agent: "main"
+    message: "E2E geral concluído em 2026-07-27. Relatório: test_reports/iteration_6_e2e_geral.json. Nova suite: backend/tests/test_e2e_full.py. Falhas restantes só env (Stripe/Resend)."

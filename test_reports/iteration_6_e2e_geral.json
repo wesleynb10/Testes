@@ -1,0 +1,106 @@
+{
+  "summary": "Teste geral end-to-end do FinPremium (local). Backend unitário 104/104. API E2E/integração 46 passed + 1 skip (Stripe); 4 failed + 2 errors só por STRIPE_API_KEY inválida (sk_test_emergent) e Resend ausente (drip fire marca send_failed). Frontend UI E2E 19/19 fluxos PASS (funil público, signup/onboarding, 9 telas do app, share story, admin).",
+  "environment": {
+    "backend": "http://127.0.0.1:8000",
+    "frontend": "http://localhost:3000",
+    "mongo": "mongodb://127.0.0.1:27017 / finpremium_e2e",
+    "credit_provider": "mock",
+    "stripe": "sk_test_emergent (inválida — esperado)",
+    "resend": "não configurado"
+  },
+  "backend_unit": {
+    "passed": 104,
+    "failed": 0,
+    "files": [
+      "test_financial_state.py",
+      "test_credit_provider.py",
+      "test_receipt_vision.py",
+      "test_audio_transcription.py",
+      "test_twilio_flow.py",
+      "test_scr_import.py",
+      "test_credit_routes.py"
+    ],
+    "report": "test_reports/pytest/unit_results.txt"
+  },
+  "backend_api_e2e": {
+    "passed": 46,
+    "skipped": 1,
+    "failed": 4,
+    "errors": 2,
+    "new_suite": "backend/tests/test_e2e_full.py",
+    "report": "test_reports/pytest/e2e_api_results.txt",
+    "covered": [
+      "GET /api/",
+      "GET /api/packages",
+      "auth register/login/me/logout/admin",
+      "POST /api/leads + count",
+      "financial-state GET/PUT",
+      "dashboard/summary",
+      "transactions CRUD + bulk",
+      "credit/price + quote + orders",
+      "admin dashboard/leads/transactions/drip/run-now",
+      "checkout invalid package"
+    ],
+    "known_env_failures": [
+      {
+        "tests": [
+          "test_checkout_still_works",
+          "test_checkout_all_three_packages",
+          "test_checkout_session_created",
+          "test_checkout_status_returns_unpaid",
+          "test_drip_cancelled_when_lead_becomes_buyer"
+        ],
+        "reason": "Stripe Invalid API Key (sk_test_emergent)",
+        "severity": "env"
+      },
+      {
+        "tests": ["test_fire_next_advances_step_and_marks_sent"],
+        "reason": "Resend ausente — drip marca status=failed/send_failed; endpoint responde 200 com sent_this_run=0",
+        "severity": "env"
+      }
+    ]
+  },
+  "frontend_ui_e2e": {
+    "passed": 19,
+    "failed": 0,
+    "flows": [
+      {"id": "A.1", "name": "Landing /venda", "status": "PASS"},
+      {"id": "A.2", "name": "Calculadora pública + lead", "status": "PASS"},
+      {"id": "A.3", "name": "Bônus", "status": "PASS"},
+      {"id": "A.4", "name": "/venda", "status": "PASS"},
+      {"id": "B.5", "name": "Signup cliente + CPF", "status": "PASS"},
+      {"id": "B.6", "name": "Onboarding", "status": "PASS"},
+      {"id": "B.7", "name": "Dashboard", "status": "PASS"},
+      {"id": "B.8", "name": "Lançamentos", "status": "PASS"},
+      {"id": "B.9", "name": "Orçamento 50/30/20 + CSV modal", "status": "PASS"},
+      {"id": "B.10", "name": "Dívidas Snowball/Avalanche", "status": "PASS"},
+      {"id": "B.11", "name": "Metas & FIRE", "status": "PASS"},
+      {"id": "B.12", "name": "Análise de Crédito UI", "status": "PASS"},
+      {"id": "B.13", "name": "Projeção de Caixa", "status": "PASS"},
+      {"id": "B.14", "name": "Escopo MD/PDF", "status": "PASS"},
+      {"id": "B.15", "name": "Share Story Instagram", "status": "PASS"},
+      {"id": "B.16", "name": "Logout cliente", "status": "PASS"},
+      {"id": "C.17", "name": "Admin login", "status": "PASS"},
+      {"id": "C.18", "name": "Admin tabs (visão/leads/vendas/drip)", "status": "PASS"},
+      {"id": "C.19", "name": "Admin logout", "status": "PASS"}
+    ],
+    "deep_api_interactions": {
+      "transactions_crud": "PASS",
+      "financial_state_income_debts_goals_fire": "PASS",
+      "lead_calculator": "PASS",
+      "projection_client_side_only": "UI page PASS; sem endpoint dedicado"
+    }
+  },
+  "bugs_found": [],
+  "blocked_by_env": [
+    "Checkout Stripe real (chave de teste inválida no .env local)",
+    "Envio de emails drip/Resend (API key vazia — fila agenda, send falha)"
+  ],
+  "success_rate": {
+    "backend_unit": "100% (104/104)",
+    "backend_api_e2e_functional": "100% das funcionalidades testáveis sem Stripe/Resend",
+    "frontend_ui": "100% (19/19)"
+  },
+  "screenshots": "/opt/cursor/artifacts/e2e-screenshots/",
+  "retest_needed": false
+}
