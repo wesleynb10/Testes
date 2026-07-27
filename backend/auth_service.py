@@ -104,6 +104,7 @@ async def get_current_user(request: Request, db) -> dict:
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         user.pop("password_hash", None)
+        user.pop("cpf_enc", None)  # nunca sai do servidor — só cpf_masked / cpf_hash
         user.pop("_id", None)
         return user
     except jwt.ExpiredSignatureError:
@@ -172,6 +173,8 @@ async def seed_admin(db):
 
 async def create_indexes(db):
     await db.users.create_index("email", unique=True)
+    # Sparse: usuários sem CPF não colidem; um CPF só pode estar em uma conta.
+    await db.users.create_index("cpf_hash", unique=True, sparse=True)
     await db.login_attempts.create_index("identifier")
     await db.leads.create_index("created_at")
     await db.payment_transactions.create_index("created_at")

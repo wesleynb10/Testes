@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth, formatApiError } from "@/context/AuthContext";
 import { useFinance } from "@/context/FinanceContext";
-import { brl, parseNum, stripLeadingZeros } from "@/lib/format";
+import { brl } from "@/lib/format";
 import {
   ShieldCheck,
   Loader2,
@@ -15,32 +15,23 @@ import {
   CheckCircle2,
   ExternalLink,
   Scale,
-  Wallet,
-  BadgeCheck,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
-// Máscara e detecção de CPF/CNPJ
+// Máscara e validação de CPF (consulta amarrada ao CPF da conta)
 // ---------------------------------------------------------------------------
 const onlyDigits = (v) => (v || "").replace(/\D/g, "");
 
-function maskDocumento(value) {
-  const d = onlyDigits(value).slice(0, 14);
-  if (d.length <= 11) {
-    return d
-      .replace(/(\d{3})(\d)/, "$1.$2")
-      .replace(/(\d{3})(\d)/, "$1.$2")
-      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-  }
+function maskCpf(value) {
+  const d = onlyDigits(value).slice(0, 11);
   return d
-    .replace(/(\d{2})(\d)/, "$1.$2")
     .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d)/, "$1/$2")
-    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
 
-function validaCPF(cpf) {
-  cpf = onlyDigits(cpf);
+function cpfValido(value) {
+  const cpf = onlyDigits(value);
   if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
   for (let t = 9; t < 11; t++) {
     let sum = 0;
@@ -50,29 +41,6 @@ function validaCPF(cpf) {
     if (d !== parseInt(cpf[t], 10)) return false;
   }
   return true;
-}
-
-function validaCNPJ(cnpj) {
-  cnpj = onlyDigits(cnpj);
-  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
-  const calc = (len) => {
-    let sum = 0;
-    let pos = len - 7;
-    for (let i = len; i >= 1; i--) {
-      sum += parseInt(cnpj[len - i], 10) * pos--;
-      if (pos < 2) pos = 9;
-    }
-    const r = sum % 11;
-    return r < 2 ? 0 : 11 - r;
-  };
-  return calc(12) === parseInt(cnpj[12], 10) && calc(13) === parseInt(cnpj[13], 10);
-}
-
-function documentoValido(value) {
-  const d = onlyDigits(value);
-  if (d.length === 11) return validaCPF(d);
-  if (d.length === 14) return validaCNPJ(d);
-  return false;
 }
 
 const CONSENT_TEXT =
@@ -144,7 +112,11 @@ function ScoreCard({ score, faixa, motivos, capacidadePagamento, perfil }) {
   );
 }
 
-function RatingCard({ rating, scr }) {
+function RatingCard({ rating, scr, explicacao }) {
+  const [open, setOpen] = useState(false);
+  const detail = explicacao?.detalhe || (
+    "Classificação consolidada a partir do SCR (faixa de risco e/ou pior operação)."
+  );
   return (
     <div className="card-gold p-6" data-testid="credit-rating-card">
       <div className="flex items-center gap-2 mb-4">
@@ -155,9 +127,27 @@ function RatingCard({ rating, scr }) {
         <div className="font-display" style={{ fontSize: 72, lineHeight: 1, color: "var(--gold-bright)" }}>
           {rating || "—"}
         </div>
-        <div className="text-[12px] mt-2" style={{ color: "var(--text-muted)" }}>
-          Classificação consolidada a partir do SCR (regra derivada — ver detalhes).
-        </div>
+        <button
+          type="button"
+          className="text-[12px] mt-2 underline-offset-2 hover:underline"
+          style={{ color: "var(--text-muted)", background: "none", border: 0, cursor: "pointer" }}
+          onClick={() => setOpen((v) => !v)}
+          data-testid="credit-rating-details-toggle"
+        >
+          Classificação consolidada a partir do SCR — {open ? "ocultar detalhes" : "ver detalhes"}
+        </button>
+        {open && (
+          <div
+            className="mt-3 text-left text-[12px] p-3 rounded-lg space-y-1"
+            style={{ background: "rgba(11,10,15,0.45)", border: "1px solid var(--ink-line)", color: "var(--text-secondary)" }}
+            data-testid="credit-rating-details"
+          >
+            <div>{detail}</div>
+            {explicacao?.faixa_risco ? <div>Faixa SCR: {explicacao.faixa_risco}</div> : null}
+            {explicacao?.score_scr != null ? <div>Score SCR: {explicacao.score_scr}</div> : null}
+            {explicacao?.fonte ? <div>Fonte da regra: {explicacao.fonte}</div> : null}
+          </div>
+        )}
       </div>
       <div className="mt-4 pt-4 border-t border-[var(--ink-line)] grid grid-cols-2 gap-3 text-[13px]">
         <div>
@@ -225,104 +215,310 @@ function CarteiraLinha({ rotulo, valor, destaque }) {
   );
 }
 
-// Fato verificável (Receita Federal), diferente da renda presumida do mesmo payload:
-// CPF irregular barra crédito independente do score, então vem antes do resto.
-function SituacaoCpfCard({ cadastro }) {
-  const irregular = cadastro.obito || (cadastro.situacao_cadastral && !cadastro.regular);
-  const cor = irregular ? "var(--danger)" : "var(--success)";
-  return (
-    <div className="card-premium p-6" data-testid="credit-cadastro-card">
-      <div className="flex items-center gap-2 mb-4">
-        <BadgeCheck className="w-[18px] h-[18px]" style={{ color: cor }} />
-        <div className="kpi-label">Situação do CPF na Receita Federal</div>
-      </div>
-      <div className="flex items-center gap-3">
-        {irregular ? (
-          <AlertCircle className="w-6 h-6 shrink-0" style={{ color: cor }} />
-        ) : (
-          <CheckCircle2 className="w-6 h-6 shrink-0" style={{ color: cor }} />
-        )}
-        <div>
-          <div className="font-display text-[18px]" style={{ color: cor }}>
-            {cadastro.obito ? "Consta indicativo de óbito" : cadastro.situacao_cadastral || "—"}
-          </div>
-          <div className="text-[12px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-            {irregular
-              ? "CPF irregular impede crédito e abertura de conta, mesmo com score bom — regularize antes."
-              : "CPF apto para crédito e abertura de conta."}
-            {cadastro.data_situacao ? ` Verificado em ${cadastro.data_situacao.split(" ")[0]}.` : ""}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+/** Mesma regra do backend (`merge_scr_import`) para idempotência por código. */
+function modalityCodigo(m) {
+  return (m?.codigo || `m${(m?.modalidade || "op").slice(0, 40)}`).trim();
 }
 
-// A renda do bureau é presumida (modelo estatístico) e erra com frequência, então
-// entra como sugestão editável: o valor que segue para o orçamento é o confirmado.
-function CtaOrcamento({ renda }) {
+function CtaImportarPlano({ report, orderId }) {
   const nav = useNavigate();
-  const { state, updateProfile, completeChecklistItem } = useFinance();
-  const rendaSalva = state?.profile?.monthlyIncome || 0;
-  const presumida = renda?.renda_estimada || 0;
-  const [valor, setValor] = useState(String(rendaSalva || presumida || ""));
+  const { api } = useAuth();
+  const { refreshFinance, state: financeState } = useFinance();
+  const modalidades = useMemo(
+    () => (report?.scr?.modalidades || []).filter((m) => Number(m?.saldo || 0) > 0),
+    [report]
+  );
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState(() =>
+    Object.fromEntries(modalidades.map((m) => [modalityCodigo(m), true]))
+  );
+  const [extras, setExtras] = useState({});
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(null);
+  const [replaceManual, setReplaceManual] = useState(!!report?.scr?.legado_consolidado);
+  const manualDebtTotal = (financeState?.debts || [])
+    .filter((d) => (d.source || "manual") === "manual")
+    .reduce((s, d) => s + (Number(d.balance) || 0), 0);
 
-  const confirmar = () => {
-    const n = parseNum(valor);
-    if (n > 0) {
-      updateProfile({ monthlyIncome: n });
-      completeChecklistItem?.("income");
-    }
-    nav("/app/orcamento");
-  };
+  useEffect(() => {
+    setSelected(Object.fromEntries(modalidades.map((m) => [modalityCodigo(m), true])));
+  }, [modalidades]);
 
-  const domicilio = [
-    renda?.moradores ? `${renda.moradores} moradores` : null,
-    renda?.classe_social ? `classe ${renda.classe_social}` : null,
-    renda?.ocupacao,
-  ].filter(Boolean).join(" · ");
+  const selectedCount = modalidades.filter((m) => selected[modalityCodigo(m)]).length;
+  const selectedTotal = modalidades.reduce(
+    (sum, m) => (selected[modalityCodigo(m)] ? sum + Number(m.saldo || 0) : sum),
+    0
+  );
 
-  return (
-    <div className="card-gold p-6" data-testid="credit-cta">
-      <div className="font-display text-[20px]" style={{ letterSpacing: "-0.02em" }}>
-        Transforme esse diagnóstico em um plano.
-      </div>
-      <div className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>
-        Organize suas dívidas e monte um orçamento que cabe no seu bolso.
-      </div>
-
-      <div className="mt-5 flex items-end gap-4 flex-wrap">
-        <div style={{ minWidth: 200 }}>
-          <div className="kpi-label mb-2">Sua renda mensal líquida</div>
-          <input
-            data-testid="credit-renda-input"
-            className="input-premium font-mono-num"
-            inputMode="decimal"
-            value={valor}
-            onChange={(e) => setValor(stripLeadingZeros(e.target.value))}
-            placeholder="0,00"
-          />
+  if (!modalidades.length) {
+    return (
+      <div className="card-gold p-6 flex items-center justify-between flex-wrap gap-4" data-testid="credit-cta">
+        <div>
+          <div className="font-display text-[20px]" style={{ letterSpacing: "-0.02em" }}>
+            Transforme esse diagnóstico em um plano.
+          </div>
+          <div className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>
+            Este relatório não trouxe operações SCR. Monte o orçamento com o que você já sabe.
+          </div>
         </div>
         <button
-          onClick={confirmar}
+          onClick={() => nav("/app/orcamento")}
           className="btn-gold"
           data-testid="credit-goto-budget"
           style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, padding: "14px 28px" }}
         >
-          Montar Plano de Orçamento <ChevronRight className="w-4 h-4" />
+          Ir para Orçamento <ChevronRight className="w-4 h-4" />
         </button>
       </div>
+    );
+  }
 
-      {presumida > 0 && (
-        <div className="text-[12px] mt-3 flex items-start gap-2" style={{ color: "var(--text-muted)" }}>
-          <Wallet className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-          <span>
-            O bureau <strong>presume</strong> {brl(presumida)}/mês
-            {renda?.faixa_salarial ? ` (${renda.faixa_salarial.toLowerCase()})` : ""}
-            {renda?.confiabilidade ? ` · confiabilidade ${renda.confiabilidade.toLowerCase()}` : ""}
-            . É uma estimativa estatística {domicilio ? `a partir do seu perfil (${domicilio})` : "de perfil"},
-            não sua renda declarada — corrija acima se estiver diferente.
-          </span>
+  const setExtra = (codigo, field, value) => {
+    setExtras((prev) => ({
+      ...prev,
+      [codigo]: { ...(prev[codigo] || {}), [field]: value },
+    }));
+  };
+
+  const handleImport = async () => {
+    if (!orderId) {
+      setError("Pedido não encontrado. Recarregue o relatório.");
+      return;
+    }
+    const payload = modalidades
+      .map((m) => {
+        const codigo = modalityCodigo(m);
+        if (!selected[codigo]) return null;
+        const ex = extras[codigo] || {};
+        return {
+          codigo,
+          rate: Number(ex.rate) || 0,
+          ratePeriod: ex.ratePeriod === "aa" ? "aa" : "am",
+          minPayment: Number(ex.minPayment) || 0,
+          termMonths: Number(ex.termMonths) || 0,
+        };
+      })
+      .filter(Boolean);
+    if (!payload.length) {
+      setError("Selecione ao menos uma operação para importar.");
+      return;
+    }
+    setImporting(true);
+    setError("");
+    try {
+      const { data } = await api.post(`/credit/report/${orderId}/import`, {
+        modalidades: payload,
+        replace_manual: !!replaceManual,
+      });
+      await refreshFinance();
+      setDone({
+        imported: data.imported,
+        total: selectedTotal,
+      });
+    } catch (e) {
+      setError(formatApiError(e.response?.data?.detail) || "Não foi possível importar.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="card-gold p-6 space-y-4" data-testid="credit-cta-done">
+        <div className="flex items-start gap-3">
+          <CheckCircle2 className="w-6 h-6 shrink-0" style={{ color: "var(--success)" }} />
+          <div>
+            <div className="font-display text-[20px]" style={{ letterSpacing: "-0.02em" }}>
+              {done.imported} {done.imported === 1 ? "dívida importada" : "dívidas importadas"} · {brl(done.total)}
+            </div>
+            <div className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>
+              Complete taxa, parcela e prazo nas Dívidas para simular a bola de neve. A curva de vencimentos já está na Projeção.
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => nav("/app/dividas")}
+            className="btn-gold"
+            data-testid="credit-goto-debts"
+            style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+          >
+            Ver Dívidas <ChevronRight className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => nav("/app/projecao")}
+            className="btn-ghost"
+            data-testid="credit-goto-projection"
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px" }}
+          >
+            Ver curva na Projeção
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card-gold p-6 space-y-4" data-testid="credit-cta">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <div className="font-display text-[20px]" style={{ letterSpacing: "-0.02em" }}>
+            Importar para o meu plano
+          </div>
+          <div className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>
+            {report?.scr?.legado_consolidado
+              ? `${brl(report.scr.divida_atual || 0)} consolidados do SCR (relatório antigo). Importe agora; uma nova consulta traz o detalhe por modalidade.`
+              : report?.scr?.divida_atual > 0
+                ? `${brl(report.scr.divida_atual)} em operações SCR → Dívidas e Projeção.`
+                : "Leve as operações do SCR para o seu plano de dívidas."}
+          </div>
+        </div>
+        {!open && (
+          <button
+            onClick={() => setOpen(true)}
+            className="btn-gold"
+            data-testid="credit-import-open"
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, padding: "14px 28px" }}
+          >
+            Escolher operações <ChevronRight className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="space-y-3 pt-2 border-t border-[var(--ink-line)]" data-testid="credit-import-wizard">
+          <div className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+            Taxa, parcela e prazo são opcionais agora — o SCR não traz esses campos. Você completa depois nas Dívidas.
+          </div>
+          {manualDebtTotal > 0 && (
+            <label
+              className="flex items-start gap-2 text-[13px] cursor-pointer p-3 rounded-lg"
+              style={{ background: "rgba(201,169,97,0.08)", border: "1px solid rgba(201,169,97,0.25)", color: "var(--text-secondary)" }}
+              data-testid="credit-import-replace-manual"
+            >
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={replaceManual}
+                onChange={(e) => setReplaceManual(e.target.checked)}
+              />
+              <span>
+                Remover dívidas manuais ({brl(manualDebtTotal)}) ao importar — evita somar em dobro com o SCR
+                {report?.scr?.legado_consolidado ? " consolidado" : ""}.
+              </span>
+            </label>
+          )}
+          {modalidades.map((m) => {
+            const codigo = modalityCodigo(m);
+            const checked = !!selected[codigo];
+            const ex = extras[codigo] || {};
+            return (
+              <div
+                key={codigo}
+                className="rounded-lg p-3 space-y-2"
+                style={{ background: "rgba(11,10,15,0.45)", border: "1px solid var(--ink-line)" }}
+              >
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) =>
+                      setSelected((prev) => ({ ...prev, [codigo]: e.target.checked }))
+                    }
+                    data-testid={`credit-import-check-${codigo}`}
+                    className="mt-1"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between gap-3">
+                      <span className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                        {m.modalidade || "Operação SCR"}
+                      </span>
+                      <span className="font-mono-num shrink-0" style={{ color: "var(--gold-bright)" }}>
+                        {brl(m.saldo || 0)}
+                      </span>
+                    </div>
+                    {(m.vencido > 0 || m.codigo) && (
+                      <div className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                        {[m.codigo && `cód. ${m.codigo}`, m.vencido > 0 && `vencido ${brl(m.vencido)}`]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </div>
+                    )}
+                  </div>
+                </label>
+                {checked && (
+                  <div className="grid grid-cols-3 gap-2 pl-7">
+                    <input
+                      className="input-premium text-[12px]"
+                      placeholder="Taxa % a.m."
+                      inputMode="decimal"
+                      value={ex.rate ?? ""}
+                      onChange={(e) => setExtra(codigo, "rate", e.target.value)}
+                      data-testid={`credit-import-rate-${codigo}`}
+                    />
+                    <input
+                      className="input-premium text-[12px]"
+                      placeholder="Parcela mín."
+                      inputMode="decimal"
+                      value={ex.minPayment ?? ""}
+                      onChange={(e) => setExtra(codigo, "minPayment", e.target.value)}
+                      data-testid={`credit-import-min-${codigo}`}
+                    />
+                    <input
+                      className="input-premium text-[12px]"
+                      placeholder="Prazo (meses)"
+                      inputMode="numeric"
+                      value={ex.termMonths ?? ""}
+                      onChange={(e) => setExtra(codigo, "termMonths", e.target.value)}
+                      data-testid={`credit-import-term-${codigo}`}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {error && (
+            <div className="text-[13px] flex items-center gap-2" style={{ color: "var(--danger)" }}>
+              <AlertCircle className="w-4 h-4" /> {error}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+              {selectedCount} selecionada{selectedCount === 1 ? "" : "s"} · {brl(selectedTotal)}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ padding: "10px 16px", fontSize: 13 }}
+                onClick={() => setOpen(false)}
+                disabled={importing}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-gold"
+                data-testid="credit-import-confirm"
+                onClick={handleImport}
+                disabled={importing || selectedCount === 0}
+                style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+              >
+                {importing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Importando…
+                  </>
+                ) : (
+                  <>
+                    Confirmar importação <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -426,14 +622,18 @@ function DividaAtivaCard({ dividaAtiva }) {
 // Página principal
 // ---------------------------------------------------------------------------
 export default function AnaliseCredito() {
-  const { api } = useAuth();
+  const { api, user, setCpf } = useAuth();
   const [params, setParams] = useSearchParams();
   const orderId = params.get("order_id");
   const canceled = params.get("canceled");
 
-  const [documento, setDocumento] = useState("");
+  const hasCpf = Boolean(user?.has_cpf || user?.cpf_masked);
+  const [cpfInput, setCpfInput] = useState("");
   const [consent, setConsent] = useState(false);
-  const [price, setPrice] = useState(null);
+  const [apisCatalog, setApisCatalog] = useState([]);
+  const [selectedApis, setSelectedApis] = useState(["score", "scr", "pendencias", "divida_ativa"]);
+  const [quote, setQuote] = useState(null);
+  const [remaining, setRemaining] = useState(user?.credit_reports_remaining || 0);
   const [consentVersion, setConsentVersion] = useState("v1");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
@@ -442,14 +642,41 @@ export default function AnaliseCredito() {
   const [phase, setPhase] = useState(orderId ? "processing" : "form");
   const [statusMsg, setStatusMsg] = useState("");
   const [report, setReport] = useState(null);
+  const [orders, setOrders] = useState([]);
   const pollRef = useRef(null);
+
+  const loadOrders = useCallback(() => {
+    api.get("/credit/orders").then(({ data }) => {
+      setOrders(data.orders || []);
+    }).catch(() => setOrders([]));
+  }, [api]);
 
   useEffect(() => {
     api.get("/credit/price").then(({ data }) => {
-      setPrice(data.price);
       setConsentVersion(data.consent_version || "v1");
+      setApisCatalog(data.apis || []);
+      setRemaining(data.credit_reports_remaining ?? user?.credit_reports_remaining ?? 0);
+      if (data.apis?.length) {
+        setSelectedApis(data.apis.map((a) => a.id));
+      }
     }).catch(() => {});
-  }, [api]);
+    loadOrders();
+  }, [api, user?.credit_reports_remaining, loadOrders]);
+
+  useEffect(() => {
+    if (!selectedApis.length) return;
+    api.post("/credit/quote", { apis: selectedApis }).then(({ data }) => {
+      setQuote(data);
+      setRemaining(data.credit_reports_remaining ?? remaining);
+    }).catch(() => {});
+  }, [api, selectedApis]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleApi = (id, required) => {
+    if (required) return;
+    setSelectedApis((prev) => (
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    ));
+  };
 
   const loadReport = useCallback(async (id) => {
     try {
@@ -496,21 +723,27 @@ export default function AnaliseCredito() {
 
   const handleSubmit = async () => {
     setFormError("");
-    if (!documentoValido(documento)) {
-      setFormError("Informe um CPF ou CNPJ válido.");
-      return;
-    }
     if (!consent) {
       setFormError("É necessário aceitar o termo de consentimento.");
       return;
     }
     setSubmitting(true);
     try {
+      // Se a conta ainda não tem CPF, vincula agora (set-once) antes do checkout.
+      if (!hasCpf) {
+        if (!cpfValido(cpfInput)) {
+          setFormError("Informe um CPF válido para vincular à sua conta.");
+          setSubmitting(false);
+          return;
+        }
+        await setCpf(onlyDigits(cpfInput));
+      }
+      // Sempre o CPF da conta; o usuário só escolhe quais fontes consultar.
       const { data } = await api.post("/credit/checkout", {
-        documento: onlyDigits(documento),
         origin_url: window.location.origin,
         consent: true,
         consent_text_version: consentVersion,
+        apis: selectedApis,
       });
       window.location.href = data.url;
     } catch (e) {
@@ -535,12 +768,45 @@ export default function AnaliseCredito() {
         <p className="mt-3 text-[15px] max-w-2xl" style={{ color: "var(--text-secondary)" }}>
           Consulte seu <span style={{ color: "var(--gold-bright)" }}>Score</span>, o resumo do
           <span style={{ color: "var(--gold-bright)" }}> SCR/BACEN</span> e eventuais negativações
-          em um único relatório — direto das fontes oficiais.
+          em um único relatório — direto das fontes oficiais. A consulta usa
+          <span style={{ color: "var(--gold-bright)" }}> apenas o CPF da sua conta</span>.
         </p>
       </header>
 
       {phase === "form" && (
-        <div className="max-w-2xl fade-up">
+        <div className="max-w-2xl fade-up space-y-6">
+          {orders.some((o) => o.status === "ready" && o.report?.available) && (
+            <div className="card-premium p-5 space-y-3" data-testid="credit-history">
+              <div className="kpi-label">Meus relatórios</div>
+              {orders
+                .filter((o) => o.status === "ready" && o.report?.available)
+                .slice(0, 5)
+                .map((o) => (
+                  <button
+                    key={o.order_id}
+                    type="button"
+                    className="w-full flex items-center justify-between gap-3 p-3 rounded-lg text-left"
+                    style={{ background: "rgba(11,10,15,0.45)", border: "1px solid var(--ink-line)" }}
+                    onClick={() => setParams({ order_id: o.order_id }, { replace: true })}
+                    data-testid={`credit-history-open-${o.order_id}`}
+                  >
+                    <div>
+                      <div className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                        Score {o.report?.score ?? "—"}
+                        {o.report?.rating_bacen ? ` · Rating ${o.report.rating_bacen}` : ""}
+                      </div>
+                      <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                        {o.documento || "CPF"} · {o.created_at ? new Date(o.created_at).toLocaleString("pt-BR") : ""}
+                        {o.report?.divida_atual != null ? ` · SCR ${brl(o.report.divida_atual)}` : ""}
+                        {o.report?.legado_consolidado ? " · consolidado" : ""}
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--gold-bright)" }} />
+                  </button>
+                ))}
+            </div>
+          )}
+
           {canceled && (
             <div
               className="card-premium p-4 mb-6 flex items-center gap-3"
@@ -555,18 +821,83 @@ export default function AnaliseCredito() {
           )}
 
           <div className="card-premium p-6">
-            <div className="kpi-label mb-2">CPF ou CNPJ do titular</div>
-            <input
-              data-testid="credit-documento-input"
-              className="input-premium font-mono-num text-[20px]"
-              placeholder="000.000.000-00"
-              value={documento}
-              onChange={(e) => setDocumento(maskDocumento(e.target.value))}
-              inputMode="numeric"
-            />
-            <p className="mt-2 text-[12px] flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
-              <Lock className="w-3.5 h-3.5" /> Consulta apenas do próprio titular. Dados tratados com segurança (LGPD).
-            </p>
+            <div className="kpi-label mb-2">CPF do titular</div>
+            {hasCpf ? (
+              <>
+                <div
+                  className="input-premium font-mono-num text-[20px] flex items-center"
+                  data-testid="credit-cpf-locked"
+                  style={{ opacity: 0.95 }}
+                >
+                  {user.cpf_masked}
+                </div>
+                <p className="mt-2 text-[12px] flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
+                  <Lock className="w-3.5 h-3.5" /> CPF vinculado à sua conta — não é possível consultar o de terceiros.
+                </p>
+              </>
+            ) : (
+              <>
+                <input
+                  data-testid="credit-cpf-input"
+                  className="input-premium font-mono-num text-[20px]"
+                  placeholder="000.000.000-00"
+                  value={cpfInput}
+                  onChange={(e) => setCpfInput(maskCpf(e.target.value))}
+                  inputMode="numeric"
+                />
+                <p className="mt-2 text-[12px] flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
+                  <Lock className="w-3.5 h-3.5" /> Este CPF será vinculado à sua conta e não poderá ser alterado.
+                </p>
+              </>
+            )}
+
+            <div className="mt-6 pt-5 border-t border-[var(--ink-line)]">
+              <div className="kpi-label mb-3">Quais consultas fazer</div>
+              <div className="space-y-2" data-testid="credit-apis">
+                {(apisCatalog.length
+                  ? apisCatalog
+                  : [
+                      { id: "score", label: "Score de crédito (QUOD)", required: true },
+                      { id: "scr", label: "SCR / BACEN", required: false },
+                      { id: "pendencias", label: "Negativações (PEFIN/REFIN)", required: false },
+                      { id: "divida_ativa", label: "Dívida ativa da União (PGFN)", required: false },
+                    ]
+                ).map((apiItem) => {
+                  const checked = selectedApis.includes(apiItem.id);
+                  return (
+                    <label
+                      key={apiItem.id}
+                      className="flex items-center gap-3 cursor-pointer select-none p-3 rounded-lg"
+                      style={{
+                        background: checked ? "rgba(201,169,97,0.08)" : "transparent",
+                        border: "1px solid var(--ink-line)",
+                        opacity: apiItem.required ? 0.95 : 1,
+                      }}
+                      data-testid={`credit-api-${apiItem.id}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={apiItem.required}
+                        onChange={() => toggleApi(apiItem.id, apiItem.required)}
+                        className="w-4 h-4 accent-[var(--gold-bright)]"
+                      />
+                      <span className="text-[13px] flex-1" style={{ color: "var(--text-primary)" }}>
+                        {apiItem.label}
+                        {apiItem.required ? (
+                          <span className="text-[11px] ml-2" style={{ color: "var(--text-muted)" }}>obrigatório</span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {remaining > 0 && (
+                <p className="mt-3 text-[12px]" style={{ color: "var(--success)" }} data-testid="credit-remaining">
+                  Você tem {remaining} consulta{remaining > 1 ? "s" : ""} inclusa{remaining > 1 ? "s" : ""} no plano — esta não será cobrada.
+                </p>
+              )}
+            </div>
 
             <label
               className="mt-5 flex items-start gap-3 cursor-pointer select-none"
@@ -592,20 +923,28 @@ export default function AnaliseCredito() {
 
             <div className="mt-6 flex items-center justify-between flex-wrap gap-4 pt-5 border-t border-[var(--ink-line)]">
               <div>
-                <div className="kpi-label mb-1">Valor do relatório</div>
-                <div className="font-display font-mono-num text-[26px]" style={{ color: "var(--gold-bright)" }}>
-                  {price != null ? brl(price) : "—"}
+                <div className="kpi-label mb-1">
+                  {quote?.payment === "included" ? "Inclusa no seu plano" : "Valor desta consulta"}
                 </div>
-                <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>Pagamento único via Pix</div>
+                <div className="font-display font-mono-num text-[26px]" style={{ color: "var(--gold-bright)" }}>
+                  {quote?.payment === "included" ? "R$ 0,00" : (quote != null ? brl(quote.amount) : "—")}
+                </div>
+                <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  {quote?.payment === "included"
+                    ? "Consumirá 1 consulta do plano"
+                    : "Pagamento único via cartão (Stripe) · preço conforme as fontes marcadas"}
+                </div>
               </div>
               <button
                 onClick={handleSubmit}
-                disabled={submitting}
+                disabled={submitting || selectedApis.length === 0}
                 className="btn-gold"
                 data-testid="credit-submit"
                 style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, padding: "14px 28px", opacity: submitting ? 0.6 : 1 }}
               >
-                {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecionando...</> : <><ShieldCheck className="w-4 h-4" /> Consultar meu crédito</>}
+                {submitting
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> {quote?.payment === "included" ? "Gerando..." : "Redirecionando..."}</>
+                  : <><ShieldCheck className="w-4 h-4" /> Consultar meu crédito</>}
               </button>
             </div>
           </div>
@@ -661,7 +1000,11 @@ export default function AnaliseCredito() {
               capacidadePagamento={report.capacidade_pagamento}
               perfil={report.perfil}
             />
-            <RatingCard rating={report.rating_bacen} scr={report.scr} />
+            <RatingCard
+              rating={report.rating_bacen}
+              scr={report.scr}
+              explicacao={report.rating_explicacao}
+            />
           </div>
 
           <PendenciasCard
@@ -670,13 +1013,20 @@ export default function AnaliseCredito() {
             resumo={report.pendencias_resumo}
           />
 
-          {report.cadastro?.situacao_cadastral && <SituacaoCpfCard cadastro={report.cadastro} />}
-
           {report.divida_ativa && Object.keys(report.divida_ativa).length > 0 && (
             <DividaAtivaCard dividaAtiva={report.divida_ativa} />
           )}
 
-          <CtaOrcamento renda={report.renda} />
+          <CtaImportarPlano report={report} orderId={orderId} />
+          <button
+            type="button"
+            className="btn-ghost text-[13px]"
+            style={{ padding: "8px 0" }}
+            onClick={() => { setReport(null); setPhase("form"); setParams({}, { replace: true }); loadOrders(); }}
+            data-testid="credit-back-to-form"
+          >
+            ← Voltar / nova consulta
+          </button>
 
           {report.comprovante_url && (
             <a

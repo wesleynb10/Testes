@@ -40,6 +40,7 @@ const emptyState = {
   },
   debts: [],
   goals: [],
+  creditInsight: {},
   fire: {
     monthlyExpenses: 0,
     monthlyInvestment: 0,

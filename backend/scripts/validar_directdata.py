@@ -13,7 +13,7 @@ Uso:
     # 2) Valida os parsers com um documento real (consome crédito!).
     #    Use SEU PRÓPRIO CPF — consultar terceiro sem consentimento é LGPD.
     python scripts/validar_directdata.py 529.982.247-25
-    python scripts/validar_directdata.py SEU_CPF --apenas renda,divida
+    python scripts/validar_directdata.py SEU_CPF --apenas divida
 
 Sai com código 1 se o token estiver inválido ou sem saldo.
 """
@@ -40,7 +40,6 @@ CONSULTAS = {
     "score": (cp.ENDPOINT_SCORE, 1.98, cp.parse_score, False),
     "scr": (cp.ENDPOINT_SCR, 4.90, cp.parse_scr, False),
     "pendencias": (cp.ENDPOINT_PENDENCIAS, 2.38, cp.parse_pendencias, False),
-    "renda": (cp.ENDPOINT_RENDA, 0.36, cp.parse_renda, True),
     "divida": (cp.ENDPOINT_DIVIDA_ATIVA, 0.36, cp.parse_divida_ativa, False),
 }
 
@@ -68,7 +67,7 @@ async def _chamar(client, endpoint: str, documento: str, token: str) -> tuple[in
     param = "CPF" if len(digits) != 14 else "CNPJ"
     params = {param: digits, "Token": token}
     if endpoint == cp.ENDPOINT_SCR:
-        params["MESANO"] = cp._mesano_atual()
+        params.update(cp._scr_mesano_param())
     resp = await client.get(f"{base}/{endpoint.lstrip('/')}", params=params)
     try:
         return resp.status_code, resp.json()

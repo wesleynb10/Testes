@@ -43,15 +43,15 @@ desligados individualmente por env. Preços do cardápio V5.3.
 | **Score de crédito (QUOD)** | `GET /api/Score?CPF={cpf}&CNPJ={cnpj}&Token={token}` | R$ 1,98 | Faixas: 0–600 alto risco · 601–700 médio · 701–1000 baixo. Retorna score, faixa, motivos, perfil. **Obrigatório** — se falhar, o relatório não é gerado. |
 | **SCR BACEN Detalhada** | `GET /api/SCRBacenDetalhada?CPF={cpf}&CNPJ={cnpj}&MESANO={mesano}&Token={token}` | R$ 4,90 | Retorna `score`, `faixaRisco`, `carteiraCredito`, responsabilidade total, operações, qtd instituições. Gera comprovante PDF. |
 | **Detalhamento Negativo (QUOD)** | `GET /api/DetalhamentoNegativo?CPF={cpf}&CNPJ={cnpj}&Token={token}` | R$ 2,38 | É a fonte de PEFIN/REFIN. Devolve buckets separados: `pendenciaFinanceira`, `protestos`, `acoesJudiciais`, `recuperacoesJudiciais`, `falencias`, `chequesSemFundo`. ⚠️ **Protestos só de SP.** |
-| **Cadastro PF Plus (renda)** | `GET /api/CadastroPessoaFisicaPlus?CPF={cpf}&Token={token}` | R$ 0,36 | Renda estimada, renda domiciliar/per capita, faixa salarial, classe social, situação cadastral, óbito. **Só PF** — pulado automaticamente em CNPJ. Alimenta o CTA de orçamento. |
 | **PGFN — Lista de Devedores da União** | `GET /api/PGFNListaDevedoresUniao?Cpf={cpf}&Cnpj={cnpj}&Token={token}` | R$ 0,36 | Dívida ativa federal (Receita/PGFN). Não aparece no SCR nem nos bureaus — dívida que o cliente costuma desconhecer. |
 
-**Custo por relatório**: PF ≈ **R$ 9,98** · PJ ≈ **R$ 9,62** (sem renda).
-Com venda a R$ 39,90, margem bruta ≈ R$ 28 por consulta (antes da taxa de pagamento).
+**Custo por relatório**: ≈ **R$ 9,62**. Cadastro PF Plus (renda/situação cadastral) foi
+**removido** — o titular já sabe a própria renda, e a consulta usa só o CPF cadastrado na conta
+(`users.cpf_enc`, set-once via `/auth/cpf` ou no registro). O body do checkout **não** escolhe
+documento: assim não dá para consultar CPF de terceiros.
 
-Flags de env (todas default `true`): `DIRECTD_PENDENCIAS_ENABLED`, `DIRECTD_RENDA_ENABLED`,
-`DIRECTD_DIVIDA_ATIVA_ENABLED`. Cada path também aceita override via
-`DIRECTD_<NOME>_ENDPOINT` sem mexer no código.
+Flags de env (default `true`): `DIRECTD_PENDENCIAS_ENABLED`, `DIRECTD_DIVIDA_ATIVA_ENABLED`.
+Cada path também aceita override via `DIRECTD_<NOME>_ENDPOINT` sem mexer no código.
 
 ### 2.2 Candidatas para as próximas fases (não integradas)
 
@@ -92,17 +92,18 @@ O fallback do rating por score do SCR é grosseiro de propósito: a escala do sc
 a do QUOD (um caso real veio com score 575 classificado como "Risco Baixo" pelo próprio provedor).
 A faixa do provedor sempre tem precedência.
 
-### Renda presumida: tratar como sugestão, nunca como fato
-`rendaEstimada` do Cadastro PF Plus é **inferência estatística** (perfil, região, domicílio), não
-renda declarada. Num caso real veio R$ 4.605,21 — exatamente 3,03× o salário mínimo, coerente com a
-faixa "3 salários mínimos" e com um domicílio modelado de 4 moradores — e ainda assim estava longe da
-renda verdadeira do titular. Não existe campo "melhor" a mapear: é o único de renda individual.
+### CPF amarrado à conta (anti-consulta de terceiros)
+O checkout (`POST /credit/checkout`) **ignora** `documento` do body e sempre consulta o
+`cpf_enc` do usuário autenticado. Sem CPF cadastrado → 400. Documento divergente no body → 403.
+O CPF é **obrigatório no cadastro** (exceto ambiente de teste / e-mail do admin) — set-once
+(`POST /auth/cpf` ou no registro) e único no sistema (`users.cpf_hash`).
 
-Consequência de produto: o cliente **sabe** a própria renda, então um número errado apresentado como
-fato queima a credibilidade do relatório inteiro. Por isso o CTA do orçamento mostra o valor como
-"o bureau presume", junto de `confiabilidade` e da composição do domicílio, num campo editável — o
-valor que vai para o orçamento é o que o usuário confirma. Vale como âncora ("é isso mesmo?"),
-não como verdade.
+### Planos incluem consultas; o usuário escolhe as APIs
+Cada SKU em `PACKAGES` tem `credit_reports_included` (Starter 1 · Completo 3 · Plus 12).
+No pagamento do plano, o saldo vai para `users.credit_reports_remaining` (ou fica pendente
+por e-mail até o cadastro). No checkout de crédito, se houver saldo, consome 1 e gera o
+relatório sem Stripe; senão cobra avulso proporcional às APIs marcadas
+(`score` obrigatório + `scr` / `pendencias` / `divida_ativa`).
 
 Consulta recusada **não é cobrada** (confirmado no extrato: o SCR falhou e não apareceu na fatura),
 então diagnosticar falha de parâmetro é de graço. A mensagem real do erro vem em
@@ -143,7 +144,6 @@ DIRECTD_TIMEOUT=45
 # Consultas opcionais do relatório (default true). Os paths têm default no código;
 # preencha o *_ENDPOINT só para sobrescrever.
 DIRECTD_PENDENCIAS_ENABLED=true
-DIRECTD_RENDA_ENABLED=true
 DIRECTD_DIVIDA_ATIVA_ENABLED=true
 # Preço de venda do serviço avulso (em BRL), definido a partir do custo em créditos
 CREDIT_REPORT_PRICE_BRL=39.90

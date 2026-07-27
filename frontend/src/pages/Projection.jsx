@@ -129,6 +129,20 @@ export default function Projection() {
 
   const baseline = useMemo(() => deriveBaseline(state), [state]);
   const debts = useMemo(() => state?.debts || [], [state]);
+  const creditInsight = useMemo(() => state?.creditInsight || {}, [state?.creditInsight]);
+  const curvaScr = useMemo(
+    () => (creditInsight.curva_vencimentos || []).filter((p) => Number(p?.valor || 0) > 0 || Number(p?.acumulado || 0) > 0),
+    [creditInsight]
+  );
+  const curvaChart = useMemo(
+    () =>
+      (creditInsight.curva_vencimentos || []).map((p) => ({
+        faixa: p.label || p.chave,
+        Faixa: Math.round(Number(p.valor) || 0),
+        Acumulado: Math.round(Number(p.acumulado) || 0),
+      })),
+    [creditInsight]
+  );
 
   const expandedEvents = useMemo(
     () =>
@@ -407,6 +421,70 @@ export default function Projection() {
           </p>
         )}
       </div>
+
+      {curvaScr.length > 0 && (
+        <div className="card-premium p-6" data-testid="projection-scr-curve">
+          <div className="flex items-start justify-between flex-wrap gap-3 mb-1">
+            <div>
+              <div className="kpi-label mb-1">Pressão de vencimentos (SCR)</div>
+              <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                Quanto do saldo a vencer cai em cada faixa de prazo — não é amortização; é o estoque
+                reportado ao BACEN no último import.
+              </p>
+            </div>
+            {creditInsight.divida_atual > 0 && (
+              <div className="text-right">
+                <div className="kpi-label">Dívida SCR</div>
+                <div className="font-mono-num text-[18px]" style={{ color: "var(--gold-bright)" }}>
+                  {brl(creditInsight.divida_atual)}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="h-56 mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={curvaChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <XAxis
+                  dataKey="faixa"
+                  tick={{ fill: "var(--text-muted)", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={0}
+                  angle={-20}
+                  textAnchor="end"
+                  height={48}
+                />
+                <YAxis
+                  tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => brlShort(v)}
+                />
+                <Tooltip content={<TooltipDark />} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="Faixa" fill="var(--gold-bright)" radius={[4, 4, 0, 0]} maxBarSize={36} />
+                <Line
+                  type="monotone"
+                  dataKey="Acumulado"
+                  stroke="var(--success)"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: "var(--success)" }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          {creditInsight.importedAt && (
+            <p className="text-[11px] mt-3" style={{ color: "var(--text-muted)" }}>
+              Importado em {new Date(creditInsight.importedAt).toLocaleString("pt-BR")}
+              {creditInsight.faixa_risco ? ` · faixa ${creditInsight.faixa_risco}` : ""}
+              {creditInsight.quantidade_instituicoes
+                ? ` · ${creditInsight.quantidade_instituicoes} instituições`
+                : ""}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Eventos futuros */}
       <div className="card-premium p-6" data-testid="projection-events">

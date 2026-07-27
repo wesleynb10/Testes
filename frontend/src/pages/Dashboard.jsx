@@ -141,7 +141,13 @@ export default function Dashboard() {
   const gastosDes = budget.desejos.reduce((s, it) => s + it.actual, 0);
   const investimentos = budget.investimentos.reduce((s, it) => s + it.actual, 0);
   const totalGastos = gastosNec + gastosDes;
-  const saldo = totalReceita - totalGastos - investimentos;
+  const debtMinPayment = (debts || []).reduce((s, d) => s + (Number(d.minPayment) || 0), 0);
+  const debtBalance = (debts || []).reduce((s, d) => s + (Number(d.balance) || 0), 0);
+  const scrDivida = Number(state?.creditInsight?.divida_atual) || 0;
+  const debtGap = debtBalance > 0 && scrDivida > 0 ? debtBalance - scrDivida : 0;
+  const comprometidoPct = totalReceita > 0 ? (debtMinPayment / totalReceita) * 100 : 0;
+  // Sobra após lançamentos E parcelas mínimas de dívidas (visão realista do mês).
+  const saldo = totalReceita - totalGastos - investimentos - debtMinPayment;
   const taxaPoupanca = totalReceita > 0 ? (investimentos / totalReceita) * 100 : 0;
   const monthLabel = new Intl.DateTimeFormat("pt-BR", {
     month: "long",
@@ -184,7 +190,6 @@ export default function Dashboard() {
 
   const needsIncomeSetup = !(totalReceita > 0);
   const goalHint = PRIMARY_GOAL_COPY[profile.primaryGoal] || null;
-  const debtBalance = (debts || []).reduce((s, d) => s + (d.balance || 0), 0);
 
   return (
     <div className="p-8 space-y-8" data-testid="dashboard-page">
@@ -255,8 +260,50 @@ export default function Dashboard() {
         <KPI label="Receita do mês" value={brl(totalReceita)} icon={TrendingUp} testId="kpi-receita" />
         <KPI label="Gastos totais" value={brl(totalGastos)} delta={percentChange(totalGastos, previousMonth?.gastos)} tone="default" icon={TrendingDown} testId="kpi-gastos" />
         <KPI label="Investido no mês" value={brl(investimentos)} tone="gold" delta={percentChange(investimentos, previousMonth?.investido)} icon={Wallet} testId="kpi-investido" />
-        <KPI label="Sobra / Saldo" value={brl(saldo)} tone={saldo >= 0 ? "success" : "danger"} icon={Target} testId="kpi-saldo" />
+        <KPI
+          label={debtMinPayment > 0 ? "Sobra após parcelas" : "Sobra / Saldo"}
+          value={brl(saldo)}
+          tone={saldo >= 0 ? "success" : "danger"}
+          icon={Target}
+          testId="kpi-saldo"
+        />
       </div>
+
+      {(debtMinPayment > 0 || scrDivida > 0) && (
+        <div
+          className="card-premium p-5 grid grid-cols-1 md:grid-cols-3 gap-4"
+          data-testid="dashboard-debt-pressure"
+        >
+          <div>
+            <div className="kpi-label mb-1">Parcelas de dívidas</div>
+            <div className="font-mono-num text-[22px]" style={{ color: comprometidoPct >= 50 ? "var(--danger)" : "var(--text-primary)" }}>
+              {brl(debtMinPayment)}
+            </div>
+            <div className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>
+              {totalReceita > 0 ? `${comprometidoPct.toFixed(0)}% da renda` : "Informe a renda"}
+              {comprometidoPct >= 50 ? " · atenção: acima de 50%" : ""}
+            </div>
+          </div>
+          <div>
+            <div className="kpi-label mb-1">Dívida no plano</div>
+            <div className="font-mono-num text-[22px]" style={{ color: "var(--text-primary)" }}>{brl(debtBalance)}</div>
+            <div className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>Saldo cadastrado em Dívidas</div>
+          </div>
+          <div>
+            <div className="kpi-label mb-1">Dívida SCR (BACEN)</div>
+            <div className="font-mono-num text-[22px]" style={{ color: "var(--gold-bright)" }}>
+              {scrDivida > 0 ? brl(scrDivida) : "—"}
+            </div>
+            <div className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>
+              {scrDivida > 0
+                ? (Math.abs(debtGap) < 1
+                  ? "Plano alinhado ao BACEN"
+                  : `Diferença vs plano: ${brl(Math.abs(debtGap))} ${debtGap > 0 ? "(plano maior)" : "(SCR maior)"}`)
+                : "Importe o relatório de crédito para comparar"}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">

@@ -47,16 +47,23 @@ from financial_state import (
     ensure_transaction_budget_item,
     get_or_create_financial_state,
     materialize_actuals,
+    merge_scr_import,
     save_financial_state,
 )
 
 from credit_provider import (
+    CREDIT_API_KEYS,
     CreditProviderError,
+    credit_api_cost_brl,
+    credit_apis_catalog,
     decrypt_documento,
     encrypt_documento,
+    ensure_scr_importable,
+    explain_rating_bacen,
     gerar_relatorio,
     hash_documento,
     mask_documento,
+    normalize_apis,
     valida_documento,
 )
 
@@ -108,14 +115,60 @@ api_router.include_router(twilio_router)
 # =============================================================================
 # PACKAGES
 # =============================================================================
+# `credit_reports_included`: quantas análises de crédito o plano libera (cada
+# análise consome 1, independentemente de quantas APIs o usuário marcar).
 PACKAGES: Dict[str, Dict[str, Any]] = {
-    "starter": {"name": "FinPremium Starter", "amount": 47.00, "currency": "brl",
-                "description": "Planilha + 3 bônus básicos"},
-    "complete": {"name": "FinPremium Completo", "amount": 97.00, "currency": "brl",
-                 "description": "Planilha + 6 bônus + comunidade + acesso vitalício"},
-    "premium_plus": {"name": "FinPremium Plus + Mentoria", "amount": 297.00, "currency": "brl",
-                     "description": "Tudo + mentoria em grupo mensal + suporte prioritário"},
+    "starter": {
+        "name": "FinPremium Starter",
+        "amount": 47.00,
+        "currency": "brl",
+        "description": "Planilha + 3 bônus básicos + 1 consulta de crédito",
+        "credit_reports_included": 1,
+        "features": [
+            "Planilha + 3 bônus básicos",
+            "1 consulta de crédito inclusa (Score, SCR, negativações, PGFN — você escolhe)",
+        ],
+    },
+    "complete": {
+        "name": "FinPremium Completo",
+        "amount": 97.00,
+        "currency": "brl",
+        "description": "Planilha + 6 bônus + comunidade + 3 consultas de crédito",
+        "credit_reports_included": 3,
+        "features": [
+            "Planilha + 6 bônus + comunidade + acesso vitalício",
+            "3 consultas de crédito inclusas (você escolhe quais fontes consultar)",
+        ],
+    },
+    "premium_plus": {
+        "name": "FinPremium Plus + Mentoria",
+        "amount": 297.00,
+        "currency": "brl",
+        "description": "Tudo + mentoria + 12 consultas de crédito",
+        "credit_reports_included": 12,
+        "features": [
+            "Tudo do Completo + mentoria em grupo mensal + suporte prioritário",
+            "12 consultas de crédito inclusas (você escolhe quais fontes consultar)",
+        ],
+    },
 }
+
+
+def _is_test_env() -> bool:
+    """Ambiente de testes / CI — permite cadastro sem CPF e admin seed."""
+    if os.environ.get("USE_MOCK_DB", "").lower() in ("1", "true", "yes"):
+        return True
+    if os.environ.get("APP_ENV", "").strip().lower() in ("test", "testing", "ci"):
+        return True
+    # Escape hatch explícito (ex.: demos internas). Produção mantém default true.
+    raw = os.environ.get("REQUIRE_CPF_ON_REGISTER")
+    if raw is not None and str(raw).strip().lower() in ("0", "false", "no", "off"):
+        return True
+    return False
+
+
+def _admin_email() -> str:
+    return (os.environ.get("ADMIN_EMAIL") or "admin@finpremium.com.br").strip().lower()
 
 
 # =============================================================================
@@ -149,6 +202,11 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     phone: Optional[str] = None  # WhatsApp em formato livre; normalizado no backend
+    cpf: Optional[str] = None    # CPF do titular — set-once; obrigatório para Análise de Crédito
+
+
+class SetCpfRequest(BaseModel):
+    cpf: str  # CPF do titular (com ou sem máscara); não pode ser alterado depois
 
 class TransactionCreate(BaseModel):
     amount: float
@@ -182,10 +240,198 @@ class FinancialStateUpdate(BaseModel):
 
 
 class CreditCheckoutRequest(BaseModel):
-    documento: str                       # CPF ou CNPJ (com ou sem máscara)
     origin_url: str
     consent: bool = False                # aceite explícito do titular (LGPD)
     consent_text_version: Optional[str] = None
+    # Quais fontes consultar. Score sempre entra. Sempre no CPF da conta.
+    apis: Optional[List[str]] = None
+    # `documento` do cliente é IGNORADO de propósito: a consulta usa só o CPF
+    # cadastrado na conta. Mantido opcional só para não quebrar clientes antigos.
+    documento: Optional[str] = None
+
+
+def _credit_sell_price_brl(apis: Optional[List[str]] = None) -> float:
+    """Preço de venda proporcional às APIs escolhidas (margem sobre o custo Direct Data)."""
+    try:
+        margin = float(os.environ.get("CREDIT_PRICE_MARGIN", "4.15"))
+    except ValueError:
+        margin = 4.15
+    cost = credit_api_cost_brl(apis)
+    # Piso evita checkout de centavos se alguém pedir só o score.
+    try:
+        floor = float(os.environ.get("CREDIT_REPORT_MIN_PRICE_BRL", "9.90"))
+    except ValueError:
+        floor = 9.90
+    return round(max(cost * margin, floor), 2)
+
+
+def _public_user(user: dict) -> dict:
+    """Campos seguros para o frontend — nunca inclui cpf_enc / password_hash."""
+    return {
+        "id": user.get("id"),
+        "email": user.get("email"),
+        "name": user.get("name", ""),
+        "role": user.get("role", "user"),
+        "phone": user.get("phone"),
+        "cpf_masked": user.get("cpf_masked"),
+        "has_cpf": bool(user.get("cpf_hash") or user.get("cpf_masked")),
+        "credit_reports_remaining": int(user.get("credit_reports_remaining") or 0),
+    }
+
+
+async def _grant_credit_reports(email: str, qty: int, *, package_id: str, session_id: str) -> None:
+    """Credita consultas inclusas do plano. Aplica na conta se já existir, senão fica pendente."""
+    if qty <= 0 or not email:
+        return
+    email = email.strip().lower()
+    grant = {
+        "qty": qty,
+        "package_id": package_id,
+        "session_id": session_id,
+        "granted_at": datetime.now(timezone.utc).isoformat(),
+    }
+    user = await db.users.find_one({"email": email})
+    if user:
+        await db.users.update_one(
+            {"id": user["id"]},
+            {
+                "$inc": {"credit_reports_remaining": qty},
+                "$push": {"credit_grants": grant},
+            },
+        )
+        return
+    # Compra antes do cadastro: resgata no register pelo mesmo email.
+    await db.credit_entitlements.update_one(
+        {"email": email},
+        {
+            "$inc": {"reports_remaining": qty},
+            "$push": {"grants": grant},
+            "$setOnInsert": {"created_at": datetime.now(timezone.utc).isoformat()},
+        },
+        upsert=True,
+    )
+
+
+async def _claim_pending_credit_entitlements(user_id: str, email: str) -> int:
+    """Move entitlements pendentes (compra pré-cadastro) para a conta do usuário."""
+    email = (email or "").strip().lower()
+    if not email:
+        return 0
+    pending = await db.credit_entitlements.find_one({"email": email})
+    if not pending:
+        return 0
+    qty = int(pending.get("reports_remaining") or 0)
+    grants = pending.get("grants") or []
+    if qty > 0:
+        await db.users.update_one(
+            {"id": user_id},
+            {
+                "$inc": {"credit_reports_remaining": qty},
+                "$push": {"credit_grants": {"$each": grants}},
+            },
+        )
+    await db.credit_entitlements.delete_one({"email": email})
+    return qty
+
+
+async def _consume_credit_report(user_id: str) -> bool:
+    """Consome 1 consulta inclusa. Retorna True se consumiu, False se não havia saldo."""
+    result = await db.users.find_one_and_update(
+        {"id": user_id, "credit_reports_remaining": {"$gt": 0}},
+        {"$inc": {"credit_reports_remaining": -1}},
+    )
+    return result is not None
+
+
+async def _attach_cpf_to_user(user_id: str, cpf: str, *, allow_replace: bool = False) -> dict:
+    """Vincula um CPF à conta (set-once). Um CPF só pode existir em uma conta."""
+    try:
+        tipo = valida_documento(cpf)
+    except CreditProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if tipo != "pf":
+        raise HTTPException(status_code=400, detail="Informe um CPF válido (11 dígitos).")
+
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    if user.get("cpf_hash") and not allow_replace:
+        raise HTTPException(
+            status_code=409,
+            detail="CPF já cadastrado nesta conta e não pode ser alterado.",
+        )
+
+    cpf_hash = hash_documento(cpf)
+    outro = await db.users.find_one({"cpf_hash": cpf_hash, "id": {"$ne": user_id}})
+    if outro:
+        raise HTTPException(
+            status_code=409,
+            detail="Este CPF já está vinculado a outra conta.",
+        )
+
+    # Se a conta já tem pedidos de crédito, o CPF precisa bater com o hash do pedido
+    # (evita vincular outro documento depois de ter consultado).
+    pedidos = await db.credit_orders.find(
+        {"user_id": user_id, "documento_hash": {"$exists": True, "$ne": ""}},
+        {"_id": 0, "documento_hash": 1, "documento_masked": 1},
+    ).to_list(20)
+    hashes = {p.get("documento_hash") for p in pedidos if p.get("documento_hash")}
+    if hashes and cpf_hash not in hashes:
+        exemplo = (pedidos[0] or {}).get("documento_masked") or "o já consultado"
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Este CPF não corresponde ao documento da consulta anterior ({exemplo}). "
+                "Informe o mesmo CPF usado no relatório."
+            ),
+        )
+
+    fields = {
+        "cpf_enc": encrypt_documento(cpf),
+        "cpf_hash": cpf_hash,
+        "cpf_masked": mask_documento(cpf),
+        "cpf_bound_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.update_one({"id": user_id}, {"$set": fields})
+    user.update(fields)
+    return user
+
+
+async def _normalize_report_payload(report_doc: dict, *, persist: bool = True) -> dict:
+    """Garante modalidades importáveis + explicação do rating em relatórios legados."""
+    payload = dict(report_doc.get("payload_normalizado") or {})
+    scr = payload.get("scr") if isinstance(payload.get("scr"), dict) else {}
+    had_mods = bool(isinstance(scr.get("modalidades"), list) and scr.get("modalidades"))
+    scr_fixed = ensure_scr_importable(scr)
+    changed = scr_fixed != scr
+    payload["scr"] = scr_fixed
+    if scr_fixed.get("legado_consolidado") and not had_mods:
+        avisos = list(payload.get("avisos") or [])
+        msg = (
+            "Relatório antigo: as operações SCR foram consolidadas em uma linha "
+            "para importar ao plano. Uma nova consulta SCR traz o detalhe por modalidade e a curva de prazos."
+        )
+        if msg not in avisos:
+            avisos.append(msg)
+            payload["avisos"] = avisos
+            changed = True
+    if not payload.get("rating_explicacao"):
+        payload["rating_explicacao"] = explain_rating_bacen(
+            (scr_fixed or {}).get("modalidades") or [],
+            (scr_fixed or {}).get("faixa_risco"),
+            (scr_fixed or {}).get("score"),
+            payload.get("rating_bacen"),
+        )
+        changed = True
+    if changed and persist and report_doc.get("id"):
+        await db.credit_reports.update_one(
+            {"id": report_doc["id"]},
+            {"$set": {"payload_normalizado": payload}},
+        )
+        report_doc["payload_normalizado"] = payload
+    else:
+        report_doc["payload_normalizado"] = payload
+    return payload
 
 
 def normalize_transaction_date(value: Optional[str]) -> Optional[str]:
@@ -247,9 +493,7 @@ async def login(payload: LoginRequest, request: Request, response: Response):
     access = create_access_token(user["id"], user["email"])
     refresh = create_refresh_token(user["id"])
     set_auth_cookies(response, access, refresh)
-    return {
-        "id": user["id"], "email": user["email"], "name": user.get("name", ""), "role": user.get("role", "user"),
-    }
+    return _public_user(user)
 
 
 @api_router.post("/auth/register")
@@ -263,12 +507,22 @@ async def register(payload: RegisterRequest, response: Response):
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="Já existe uma conta com este email")
 
+    # CPF obrigatório para todo cadastro real. Exceções: ambiente de teste e
+    # o e-mail do admin (seed). Sem CPF não há Análise de Crédito segura.
+    cpf_obrigatorio = not _is_test_env() and email != _admin_email()
+    if cpf_obrigatorio and not (payload.cpf or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Informe o seu CPF para criar a conta. Ele fica vinculado e não pode ser alterado.",
+        )
+
     doc = {
         "id": str(uuid.uuid4()),
         "email": email,
         "password_hash": hash_password(payload.password),
         "name": (payload.name or "").strip() or "Cliente",
         "role": "user",
+        "credit_reports_remaining": 0,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -279,14 +533,40 @@ async def register(payload: RegisterRequest, response: Response):
         doc["phone"] = phone
         doc["whatsapp"] = f"whatsapp:{phone}"
 
+    # Valida o CPF ANTES de inserir a conta quando ele é obrigatório.
+    if (payload.cpf or "").strip():
+        try:
+            tipo = valida_documento(payload.cpf)
+        except CreditProviderError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if tipo != "pf":
+            raise HTTPException(status_code=400, detail="Informe um CPF válido (11 dígitos).")
+        if await db.users.find_one({"cpf_hash": hash_documento(payload.cpf)}):
+            raise HTTPException(status_code=409, detail="Este CPF já está vinculado a outra conta.")
+
     await db.users.insert_one(doc)
+
+    if (payload.cpf or "").strip():
+        try:
+            await _attach_cpf_to_user(doc["id"], payload.cpf)
+        except HTTPException:
+            await db.users.delete_one({"id": doc["id"]})
+            raise
+
+    await _claim_pending_credit_entitlements(doc["id"], email)
+    doc = await db.users.find_one({"id": doc["id"]}) or doc
+
     access = create_access_token(doc["id"], doc["email"])
     refresh = create_refresh_token(doc["id"])
     set_auth_cookies(response, access, refresh)
-    return {
-        "id": doc["id"], "email": doc["email"], "name": doc["name"],
-        "role": doc["role"], "phone": doc.get("phone"),
-    }
+    return _public_user(doc)
+
+
+@api_router.post("/auth/cpf")
+async def set_cpf(payload: SetCpfRequest, current: dict = Depends(get_current_user)):
+    """Vincula o CPF do titular à conta. Set-once — não pode ser alterado."""
+    user = await _attach_cpf_to_user(current["id"], payload.cpf)
+    return _public_user(user)
 
 
 @api_router.post("/auth/logout")
@@ -297,7 +577,7 @@ async def logout(response: Response, current: dict = Depends(get_current_user)):
 
 @api_router.get("/auth/me")
 async def me(current: dict = Depends(get_current_user)):
-    return current
+    return _public_user(current)
 
 
 # =============================================================================
@@ -690,6 +970,16 @@ async def _fulfill_paid_transaction(tx: dict, customer_email: str, status_label:
     amount = tx.get("amount", 0)
     pkg_name = pkg.get("name", pkg_id)
 
+    # Consultas de crédito inclusas no plano (1 consumo = 1 relatório, APIs à escolha).
+    included = int(pkg.get("credit_reports_included") or 0)
+    if included > 0 and customer_email:
+        try:
+            await _grant_credit_reports(
+                customer_email, included, package_id=pkg_id, session_id=session_id,
+            )
+        except Exception as e:
+            logging.warning(f"Credit entitlement grant failed: {e}")
+
     try:
         await send_customer_welcome(customer_email, pkg_name, amount, session_id)
     except Exception as e:
@@ -865,7 +1155,11 @@ async def _generate_credit_report(order_id: str) -> None:
         return
 
     try:
-        report = await gerar_relatorio(documento, claimed.get("tipo"))
+        report = await gerar_relatorio(
+            documento,
+            claimed.get("tipo"),
+            apis=claimed.get("apis") or list(CREDIT_API_KEYS),
+        )
     except CreditProviderError as exc:
         logging.warning(f"Credit report generation failed (order {order_id}): {exc}")
         await db.credit_orders.update_one(
@@ -995,23 +1289,93 @@ async def create_credit_checkout(
             status_code=400,
             detail="É necessário aceitar o termo de consentimento para consultar seus dados.",
         )
-    # 2) Valida CPF/CNPJ (dígitos verificadores) ANTES de gastar crédito.
-    try:
-        tipo = valida_documento(payload.documento)
-    except CreditProviderError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
 
+    # 2) A consulta usa SOMENTE o CPF cadastrado na conta — nunca o que o cliente
+    # enviou no body. Assim não dá para consultar o CPF de terceiros.
+    user_doc = await db.users.find_one({"id": current.get("id")})
+    if not user_doc or not user_doc.get("cpf_enc"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cadastre o seu CPF na conta antes de consultar o crédito.",
+        )
+    try:
+        documento = decrypt_documento(user_doc["cpf_enc"])
+        tipo = valida_documento(documento)
+    except CreditProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if tipo != "pf":
+        raise HTTPException(
+            status_code=400,
+            detail="A Análise de Crédito está disponível apenas para CPF.",
+        )
+    if payload.documento:
+        if hash_documento(payload.documento) != user_doc.get("cpf_hash"):
+            raise HTTPException(
+                status_code=403,
+                detail="Só é possível consultar o CPF cadastrado na sua conta.",
+            )
+
+    apis = normalize_apis(payload.apis)
+    order_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    origin = payload.origin_url.rstrip("/")
+
+    base_order = {
+        "id": order_id,
+        "user_id": current.get("id"),
+        "user_email": current.get("email"),
+        "documento_masked": user_doc.get("cpf_masked") or mask_documento(documento),
+        "documento_hash": user_doc.get("cpf_hash") or hash_documento(documento),
+        "documento_enc": encrypt_documento(documento),
+        "tipo": "pf",
+        "apis": apis,
+        "currency": "brl",
+        "consent": {
+            "aceito": True,
+            "texto_versao": payload.consent_text_version or CREDIT_CONSENT_VERSION,
+            "ip": _client_ip(request),
+            "user_agent": request.headers.get("User-Agent", "")[:400],
+            "timestamp": now,
+        },
+        "report_id": None,
+        "error": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    # 3) Plano incluso: consome 1 consulta sem Stripe.
+    if await _consume_credit_report(current["id"]):
+        order = {
+            **base_order,
+            "amount": 0.0,
+            "payment": {"provider": "entitlement", "session_id": None, "status": "paid"},
+            "status": "paid",
+        }
+        await db.credit_orders.insert_one(order)
+        logging.info(
+            "Credit order (inclusa) order=%s user=%s apis=%s",
+            order_id, current.get("id"), ",".join(apis),
+        )
+        await _generate_credit_report(order_id)
+        return {
+            "url": f"{origin}/app/credito?order_id={order_id}",
+            "session_id": None,
+            "order_id": order_id,
+            "payment": "included",
+            "apis": apis,
+            "amount": 0.0,
+        }
+
+    # 4) Avulso: cobra proporcional às APIs escolhidas.
+    amount = _credit_sell_price_brl(apis)
     if not (STRIPE_API_KEY or "").strip():
         raise HTTPException(
             status_code=503,
             detail="Pagamentos temporariamente indisponíveis. O Stripe ainda não está configurado.",
         )
 
-    origin = payload.origin_url.rstrip("/")
-    order_id = str(uuid.uuid4())
     success_url = f"{origin}/app/credito?order_id={order_id}&session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}/app/credito?canceled=1"
-
     host_url = str(request.base_url)
     webhook_url = f"{host_url.rstrip('/')}/api/webhook/stripe"
     stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
@@ -1021,9 +1385,10 @@ async def create_credit_checkout(
         "order_id": order_id,
         "email": (current.get("email") or "").lower().strip(),
         "source": "analise_credito",
+        "apis": ",".join(apis),
     }
     checkout_request = CheckoutSessionRequest(
-        amount=float(CREDIT_REPORT_PRICE_BRL),
+        amount=float(amount),
         currency="brl",
         success_url=success_url,
         cancel_url=cancel_url,
@@ -1038,37 +1403,25 @@ async def create_credit_checkout(
             detail="Pagamentos temporariamente indisponíveis. Tente novamente em breve.",
         ) from exc
 
-    now = datetime.now(timezone.utc).isoformat()
     order = {
-        "id": order_id,
-        "user_id": current.get("id"),
-        "user_email": current.get("email"),
-        "documento_masked": mask_documento(payload.documento),
-        "documento_hash": hash_documento(payload.documento),
-        "documento_enc": encrypt_documento(payload.documento),
-        "tipo": tipo,
-        "amount": float(CREDIT_REPORT_PRICE_BRL),
-        "currency": "brl",
-        "consent": {
-            "aceito": True,
-            "texto_versao": payload.consent_text_version or CREDIT_CONSENT_VERSION,
-            "ip": _client_ip(request),
-            "user_agent": request.headers.get("User-Agent", "")[:400],
-            "timestamp": now,
-        },
+        **base_order,
+        "amount": float(amount),
         "payment": {"provider": "stripe", "session_id": session.session_id, "status": "pending"},
         "status": "pending",
-        "report_id": None,
-        "error": None,
-        "created_at": now,
-        "updated_at": now,
     }
     await db.credit_orders.insert_one(order)
     logging.info(
-        "Credit order criada order=%s user=%s doc=%s tipo=%s",
-        order_id, current.get("id"), order["documento_masked"], tipo,
+        "Credit order criada order=%s user=%s apis=%s amount=%.2f",
+        order_id, current.get("id"), ",".join(apis), amount,
     )
-    return {"url": session.url, "session_id": session.session_id, "order_id": order_id}
+    return {
+        "url": session.url,
+        "session_id": session.session_id,
+        "order_id": order_id,
+        "payment": "stripe",
+        "apis": apis,
+        "amount": float(amount),
+    }
 
 
 @api_router.get("/credit/status/{order_id}")
@@ -1098,6 +1451,43 @@ async def get_credit_status(order_id: str, current: dict = Depends(get_current_u
     return _credit_order_public(order)
 
 
+@api_router.get("/credit/orders")
+async def list_credit_orders(current: dict = Depends(get_current_user)):
+    """Histórico de consultas de crédito da conta (mais recentes primeiro)."""
+    cursor = db.credit_orders.find(
+        {"user_id": current.get("id")},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(30)
+    orders = await cursor.to_list(30)
+    items = []
+    for order in orders:
+        public = _credit_order_public(order)
+        report_meta = None
+        if order.get("status") == "ready" and order.get("report_id"):
+            report = await db.credit_reports.find_one(
+                {"id": order["report_id"]},
+                {"_id": 0, "expires_at": 1, "payload_normalizado.score": 1,
+                 "payload_normalizado.rating_bacen": 1,
+                 "payload_normalizado.scr.divida_atual": 1,
+                 "payload_normalizado.scr.legado_consolidado": 1},
+            )
+            if report:
+                payload = report.get("payload_normalizado") or {}
+                scr = payload.get("scr") or {}
+                report_meta = {
+                    "score": payload.get("score"),
+                    "rating_bacen": payload.get("rating_bacen"),
+                    "divida_atual": scr.get("divida_atual"),
+                    "legado_consolidado": bool(scr.get("legado_consolidado")),
+                    "expires_at": report.get("expires_at"),
+                    "available": True,
+                }
+            else:
+                report_meta = {"available": False, "expired": True}
+        items.append({**public, "report": report_meta})
+    return {"orders": items}
+
+
 @api_router.get("/credit/report/{order_id}")
 async def get_credit_report(order_id: str, current: dict = Depends(get_current_user)):
     order = await db.credit_orders.find_one({"id": order_id})
@@ -1118,20 +1508,133 @@ async def get_credit_report(order_id: str, current: dict = Depends(get_current_u
                 f"após {CREDIT_REPORT_RETENTION_DAYS} dias. Faça uma nova consulta."
             ),
         )
+    payload = await _normalize_report_payload(report, persist=True)
     return {
         "order": _credit_order_public(order),
-        "report": report.get("payload_normalizado", {}),
+        "report": payload,
         "comprovante_url": report.get("comprovante_url"),
         "expires_at": report.get("expires_at"),
     }
 
 
 @api_router.get("/credit/price")
-async def get_credit_price():
+async def get_credit_price(current: dict = Depends(get_current_user)):
+    """Catálogo de APIs + preço do pacote completo + saldo de consultas do plano."""
+    user = await db.users.find_one({"id": current.get("id")}) or {}
     return {
-        "price": float(CREDIT_REPORT_PRICE_BRL),
+        "price": float(CREDIT_REPORT_PRICE_BRL),  # pacote completo (referência)
         "currency": "brl",
         "consent_version": CREDIT_CONSENT_VERSION,
+        "apis": credit_apis_catalog(),
+        "price_by_apis": {
+            # Exemplo de preço se o cliente marcar o pacote inteiro.
+            "all": _credit_sell_price_brl(list(CREDIT_API_KEYS)),
+        },
+        "credit_reports_remaining": int(user.get("credit_reports_remaining") or 0),
+    }
+
+
+class CreditQuoteRequest(BaseModel):
+    apis: Optional[List[str]] = None
+
+
+class CreditImportModality(BaseModel):
+    codigo: str
+    rate: Optional[float] = 0.0
+    ratePeriod: Optional[str] = "am"
+    minPayment: Optional[float] = 0.0
+    termMonths: Optional[int] = 0
+
+
+class CreditImportRequest(BaseModel):
+    # Se vazio/omitido, importa todas as modalidades com saldo > 0.
+    modalidades: Optional[List[CreditImportModality]] = None
+    # Relatórios legados (1 linha consolidada) costumam sobrepor dívidas manuais.
+    replace_manual: bool = False
+
+
+@api_router.post("/credit/quote")
+async def quote_credit_report(
+    payload: CreditQuoteRequest,
+    current: dict = Depends(get_current_user),
+):
+    """Calcula o preço das APIs escolhidas sem abrir checkout."""
+    apis = normalize_apis(payload.apis)
+    user = await db.users.find_one({"id": current.get("id")}) or {}
+    remaining = int(user.get("credit_reports_remaining") or 0)
+    return {
+        "apis": apis,
+        "amount": 0.0 if remaining > 0 else _credit_sell_price_brl(apis),
+        "currency": "brl",
+        "payment": "included" if remaining > 0 else "stripe",
+        "credit_reports_remaining": remaining,
+        "cost_provider_brl": credit_api_cost_brl(apis),
+    }
+
+
+@api_router.post("/credit/report/{order_id}/import")
+async def import_credit_report_to_plan(
+    order_id: str,
+    payload: CreditImportRequest,
+    current: dict = Depends(get_current_user),
+):
+    """Importa modalidades do SCR do relatório para `financial_state.debts`.
+
+    Idempotente por `scrCodigo`: reimportar atualiza saldos, não duplica.
+    """
+    order = await db.credit_orders.find_one({"id": order_id})
+    if not order or order.get("user_id") != current.get("id"):
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if order.get("status") != "ready" or not order.get("report_id"):
+        raise HTTPException(status_code=409, detail="Relatório ainda não está disponível")
+
+    report = await db.credit_reports.find_one({"id": order["report_id"]}, {"_id": 0})
+    if not report:
+        raise HTTPException(
+            status_code=410,
+            detail=(
+                f"Este relatório expirou. Por segurança, os dados de crédito são apagados "
+                f"após {CREDIT_REPORT_RETENTION_DAYS} dias. Faça uma nova consulta."
+            ),
+        )
+
+    normalized = await _normalize_report_payload(report, persist=True)
+    scr = normalized.get("scr") if isinstance(normalized.get("scr"), dict) else {}
+    modalidades = scr.get("modalidades") if isinstance(scr.get("modalidades"), list) else []
+    if not modalidades:
+        raise HTTPException(
+            status_code=422,
+            detail="Este relatório não tem operações SCR para importar. Inclua a consulta SCR na próxima vez.",
+        )
+
+    selected = None
+    if payload.modalidades:
+        selected = [item.model_dump() for item in payload.modalidades]
+
+    current_state = await get_or_create_financial_state(db, current)
+    if payload.replace_manual:
+        current_state = {
+            **current_state,
+            "debts": [d for d in (current_state.get("debts") or []) if d.get("source") == "scr"],
+        }
+    merged = merge_scr_import(
+        current_state,
+        report_id=order["report_id"],
+        order_id=order_id,
+        scr=scr,
+        selected=selected,
+    )
+    state = await save_financial_state(db, current, merged)
+    imported_count = sum(1 for d in state.get("debts") or [] if d.get("source") == "scr")
+    logging.info(
+        "Credit SCR import order=%s user=%s debts_scr=%s",
+        order_id, current.get("id"), imported_count,
+    )
+    return {
+        "ok": True,
+        "imported": imported_count,
+        "state": state,
+        "creditInsight": state.get("creditInsight") or {},
     }
 
 

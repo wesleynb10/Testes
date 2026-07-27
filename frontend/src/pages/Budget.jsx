@@ -419,6 +419,13 @@ export default function Budget() {
   const income = state.profile.monthlyIncome;
   const rule = state.budgetRule || DEFAULT_RULE;
   const ruleSum = (rule.necessidades || 0) + (rule.desejos || 0) + (rule.investimentos || 0);
+  const debtMinPayment = (state.debts || []).reduce((s, d) => s + (Number(d.minPayment) || 0), 0);
+  const debtPct = income > 0 ? (debtMinPayment / income) * 100 : 0;
+  const plannedTotal = ["necessidades", "desejos", "investimentos"].reduce(
+    (sum, key) => sum + (state.budget[key] || []).reduce((s, it) => s + (Number(it.planned) || 0), 0),
+    0
+  );
+  const overload = plannedTotal + debtMinPayment - income;
 
   const cats = CAT_META.map((c) => ({ ...c, target: rule[c.key] ?? DEFAULT_RULE[c.key], items: state.budget[c.key] }));
 
@@ -483,6 +490,27 @@ export default function Budget() {
 
       {/* Alertas de uso das metas */}
       <BudgetAlerts cats={cats} income={income} />
+
+      {debtMinPayment > 0 && (
+        <div
+          className="card-premium p-5 flex items-start gap-3 flex-wrap"
+          data-testid="budget-debt-pressure"
+          style={{ borderColor: debtPct >= 40 || overload > 0 ? "rgba(212,106,106,0.35)" : "var(--ink-line)" }}
+        >
+          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: debtPct >= 40 ? "var(--danger)" : "var(--gold-bright)" }} />
+          <div className="flex-1 min-w-[220px]">
+            <div className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>
+              Serviço da dívida: {brl(debtMinPayment)}/mês ({debtPct.toFixed(0)}% da renda)
+            </div>
+            <p className="text-[13px] mt-1" style={{ color: "var(--text-secondary)" }}>
+              As parcelas não entram nas colunas 50/30/20 — trate-as como compromisso fixo antes de Necessidades/Desejos.
+              {overload > 0
+                ? ` Planejado (${brl(plannedTotal)}) + parcelas ultrapassam a renda em ${brl(overload)}.`
+                : " Orçamento planejado ainda cabe junto com as parcelas."}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-6">
         {cats.map((c) => (

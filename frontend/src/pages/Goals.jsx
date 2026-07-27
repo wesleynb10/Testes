@@ -50,10 +50,19 @@ function defaultDeadlineIso(yearsAhead = 2) {
   return d.toISOString().slice(0, 10);
 }
 
+function isDebtFreedomGoal(name) {
+  const n = String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return n.includes("livre") && n.includes("divida");
+}
+
 export default function Goals() {
   const { state, addGoal, updateGoal, removeGoal, updateFire } = useFinance();
   const goals = state.goals;
   const fire = state.fire;
+  const debtBalance = (state.debts || []).reduce((s, d) => s + (Number(d.balance) || 0), 0);
   const [newGoal, setNewGoal] = useState({
     name: "", target: "", current: "", deadline: defaultDeadlineIso(2),
   });
@@ -282,6 +291,31 @@ export default function Goals() {
           </div>
           <TargetIcon className="w-5 h-5" style={{ color: "var(--gold)" }} />
         </div>
+
+        {debtBalance > 0 && goals.some((g) => isDebtFreedomGoal(g.name) && Math.abs((Number(g.target) || 0) - debtBalance) > 1) && (
+          <div
+            className="mb-4 p-4 rounded-xl flex items-center justify-between gap-3 flex-wrap"
+            style={{ background: "rgba(201,169,97,0.08)", border: "1px solid rgba(201,169,97,0.25)" }}
+            data-testid="goals-sync-debt"
+          >
+            <div className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+              Meta “livre das dívidas” está desalinhada do saldo atual ({brl(debtBalance)}).
+            </div>
+            <button
+              type="button"
+              className="btn-gold"
+              style={{ fontSize: 13, padding: "8px 14px" }}
+              onClick={() => {
+                goals.filter((g) => isDebtFreedomGoal(g.name)).forEach((g) => {
+                  updateGoal(g.id, { target: Math.round(debtBalance * 100) / 100 });
+                });
+              }}
+              data-testid="goals-sync-debt-btn"
+            >
+              Alinhar ao saldo
+            </button>
+          </div>
+        )}
 
         <div className="space-y-4">
           {goals.map((g) => {

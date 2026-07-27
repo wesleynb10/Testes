@@ -97,6 +97,25 @@ function PackageCard({ pkg, featured, onSelect, loading }) {
         <p className="mt-5 text-[13px]" style={{ color: "var(--text-secondary)" }}>
           {pkg.description}
         </p>
+        {(pkg.features?.length > 0 || pkg.credit_reports_included > 0) && (
+          <ul className="mt-5 space-y-2 text-left text-[12px]" style={{ color: "var(--text-secondary)" }}>
+            {(pkg.features || []).map((f, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <Check className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "var(--gold-bright)" }} />
+                <span>{f}</span>
+              </li>
+            ))}
+            {!pkg.features?.length && pkg.credit_reports_included > 0 && (
+              <li className="flex items-start gap-2">
+                <Check className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "var(--gold-bright)" }} />
+                <span>
+                  {pkg.credit_reports_included} consulta{pkg.credit_reports_included > 1 ? "s" : ""} de crédito inclusa
+                  {pkg.credit_reports_included > 1 ? "s" : ""} — você escolhe as fontes
+                </span>
+              </li>
+            )}
+          </ul>
+        )}
       </div>
       <button
         data-testid={`btn-buy-${pkg.id}`}

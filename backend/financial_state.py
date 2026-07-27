@@ -5,7 +5,7 @@ import unicodedata
 import uuid
 from copy import deepcopy
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 VALID_CATEGORIES = ("necessidades", "desejos", "investimentos")
 CHECKLIST_KEYS = ("income", "firstTx", "budget", "goalDebt", "whatsapp")
@@ -85,6 +85,9 @@ def default_financial_state(name: str = "Investidor") -> Dict[str, Any]:
         },
         "debts": [],
         "goals": [],
+        # Snapshot do último import SCR — alimenta a curva na Projeção sem
+        # precisar reconsultar o relatório.
+        "creditInsight": {},
         "fire": {
             "monthlyExpenses": 0.0,
             "monthlyInvestment": 0.0,
@@ -154,19 +157,60 @@ def clean_financial_state(raw: Any, fallback_name: str = "Investidor") -> Dict[s
     for debt in raw_debts[:100]:
         if not isinstance(debt, dict):
             continue
-        debts.append(
-            {
-                "id": _id(debt.get("id"), "dv"),
-                "name": _text(debt.get("name"), "Dívida", 120),
-                "balance": max(0.0, _number(debt.get("balance"))),
-                "rate": max(0.0, _number(debt.get("rate"))),
-                # am = % ao mês (padrão). aa = % ao ano (conversão linear /12 no simulador).
-                "ratePeriod": "aa" if str(debt.get("ratePeriod") or "").lower() == "aa" else "am",
-                "minPayment": max(0.0, _number(debt.get("minPayment"))),
-                # Meses restantes do contrato (0 = não informado / indeterminado).
-                "termMonths": max(0, min(600, int(_number(debt.get("termMonths"))))),
-            }
-        )
+        source_tag = _text(debt.get("source"), "manual", 20).lower()
+        if source_tag not in ("manual", "scr", "pendencia", "pgfn"):
+            source_tag = "manual"
+        entry = {
+            "id": _id(debt.get("id"), "dv"),
+            "name": _text(debt.get("name"), "Dívida", 120),
+            "balance": max(0.0, _number(debt.get("balance"))),
+            "rate": max(0.0, _number(debt.get("rate"))),
+            # am = % ao mês (padrão). aa = % ao ano (conversão linear /12 no simulador).
+            "ratePeriod": "aa" if str(debt.get("ratePeriod") or "").lower() == "aa" else "am",
+            "minPayment": max(0.0, _number(debt.get("minPayment"))),
+            # Meses restantes do contrato (0 = não informado / indeterminado).
+            "termMonths": max(0, min(600, int(_number(debt.get("termMonths"))))),
+            "source": source_tag,
+        }
+        # Metadados do SCR — usados para idempotência no import e na UI.
+        if source_tag != "manual":
+            entry["reportId"] = _text(debt.get("reportId"), "", 80)
+            entry["scrCodigo"] = _text(debt.get("scrCodigo"), "", 40)
+            entry["vencido"] = max(0.0, _number(debt.get("vencido")))
+            entry["importedAt"] = _text(debt.get("importedAt"), "", 40)
+        debts.append(entry)
+
+    insight_raw = source.get("creditInsight") if isinstance(source.get("creditInsight"), dict) else {}
+    credit_insight: Dict[str, Any] = {}
+    if insight_raw:
+        curva = []
+        for ponto in (insight_raw.get("curva_vencimentos") or [])[:12]:
+            if not isinstance(ponto, dict):
+                continue
+            curva.append(
+                {
+                    "chave": _text(ponto.get("chave"), "", 40),
+                    "label": _text(ponto.get("label"), "", 60),
+                    "horizonte_dias": max(0, int(_number(ponto.get("horizonte_dias")))),
+                    "valor": max(0.0, _number(ponto.get("valor"))),
+                    "acumulado": max(0.0, _number(ponto.get("acumulado"))),
+                }
+            )
+        credit_insight = {
+            "reportId": _text(insight_raw.get("reportId"), "", 80),
+            "orderId": _text(insight_raw.get("orderId"), "", 80),
+            "importedAt": _text(insight_raw.get("importedAt"), "", 40),
+            "divida_atual": max(0.0, _number(insight_raw.get("divida_atual"))),
+            "quantidade_instituicoes": max(
+                0, int(_number(insight_raw.get("quantidade_instituicoes")))
+            ),
+            "quantidade_operacoes": max(
+                0, int(_number(insight_raw.get("quantidade_operacoes")))
+            ),
+            "faixa_risco": _text(insight_raw.get("faixa_risco"), "", 60),
+            "curva_vencimentos": curva,
+            "legado_consolidado": bool(insight_raw.get("legado_consolidado")),
+        }
 
     goals = []
     raw_goals = source.get("goals") if isinstance(source.get("goals"), list) else []
@@ -212,6 +256,7 @@ def clean_financial_state(raw: Any, fallback_name: str = "Investidor") -> Dict[s
         "budget": budget,
         "debts": debts,
         "goals": goals,
+        "creditInsight": credit_insight,
         "fire": fire,
     }
 
@@ -313,6 +358,134 @@ async def ensure_transaction_budget_item(db, user: dict, transaction: dict) -> N
         },
         upsert=True,
     )
+
+
+def merge_scr_import(
+    state: Dict[str, Any],
+    *,
+    report_id: str,
+    order_id: str,
+    scr: Dict[str, Any],
+    selected: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Mescla modalidades SCR em `debts` + `creditInsight` (idempotente por scrCodigo).
+
+    `selected` é uma lista opcional de overrides:
+      [{codigo, rate?, ratePeriod?, minPayment?, termMonths?}, ...]
+    Se omitida/vazia, importa todas as modalidades com saldo > 0.
+    """
+    cleaned = clean_financial_state(state)
+    modalidades = scr.get("modalidades") if isinstance(scr.get("modalidades"), list) else []
+    by_codigo: Dict[str, Dict[str, Any]] = {}
+    for m in modalidades:
+        if not isinstance(m, dict):
+            continue
+        codigo = _text(m.get("codigo"), "", 40)
+        if not codigo:
+            # Fallback estável quando a API não manda código.
+            codigo = f"m{_text(m.get('modalidade'), 'op', 40)}"
+        by_codigo[codigo] = m
+
+    overrides: Dict[str, Dict[str, Any]] = {}
+    if selected:
+        for item in selected:
+            if not isinstance(item, dict):
+                continue
+            codigo = _text(item.get("codigo"), "", 40)
+            if codigo and codigo in by_codigo:
+                overrides[codigo] = item
+        wanted = set(overrides.keys())
+    else:
+        wanted = {
+            codigo
+            for codigo, m in by_codigo.items()
+            if float(m.get("saldo") or 0.0) > 0
+        }
+
+    now = datetime.now(timezone.utc).isoformat()
+    existing_by_codigo = {
+        _text(d.get("scrCodigo"), "", 40): d
+        for d in cleaned["debts"]
+        if d.get("source") == "scr" and _text(d.get("scrCodigo"), "", 40)
+    }
+    keep = [d for d in cleaned["debts"] if d.get("source") != "scr"]
+    imported = []
+    for codigo in wanted:
+        m = by_codigo[codigo]
+        saldo = max(0.0, float(m.get("saldo") or 0.0))
+        if saldo <= 0:
+            continue
+        prev = existing_by_codigo.get(codigo) or {}
+        ov = overrides.get(codigo) or {}
+        rate = ov.get("rate", prev.get("rate", 0))
+        min_payment = ov.get("minPayment", prev.get("minPayment", 0))
+        term = ov.get("termMonths", prev.get("termMonths", 0))
+        rate_period = ov.get("ratePeriod", prev.get("ratePeriod", "am"))
+        imported.append(
+            {
+                "id": prev.get("id") or f"dv{uuid.uuid4().hex[:12]}",
+                "name": _text(m.get("modalidade"), "Operação SCR", 120),
+                "balance": saldo,
+                "rate": max(0.0, _number(rate)),
+                "ratePeriod": "aa" if str(rate_period or "").lower() == "aa" else "am",
+                "minPayment": max(0.0, _number(min_payment)),
+                "termMonths": max(0, min(600, int(_number(term)))),
+                "source": "scr",
+                "reportId": _text(report_id, "", 80),
+                "scrCodigo": codigo,
+                "vencido": max(0.0, _number(m.get("vencido"))),
+                "importedAt": now,
+            }
+        )
+
+    cleaned["debts"] = keep + imported
+
+    profile = cleaned["profile"]
+    if not profile.get("primaryGoal"):
+        profile["primaryGoal"] = "sair_dividas"
+    checklist = profile.get("firstWeekChecklist") or default_first_week_checklist()
+    if imported:
+        checklist["goalDebt"] = True
+    profile["firstWeekChecklist"] = checklist
+    cleaned["profile"] = profile
+
+    # Alinha meta "Ficar livre das dívidas" ao saldo real (SCR + manuais).
+    total_dividas = sum(float(d.get("balance") or 0.0) for d in cleaned["debts"])
+    if total_dividas > 0:
+        goals = list(cleaned.get("goals") or [])
+        synced = False
+        for goal in goals:
+            name = normalize_label(goal.get("name"))
+            if "livre" in name and "divida" in name:
+                goal["target"] = round(total_dividas, 2)
+                synced = True
+                break
+        if not synced and profile.get("primaryGoal") == "sair_dividas":
+            goals.insert(
+                0,
+                {
+                    "id": f"g{uuid.uuid4().hex[:12]}",
+                    "name": "Ficar livre das dívidas",
+                    "target": round(total_dividas, 2),
+                    "current": 0.0,
+                    "deadline": "",
+                },
+            )
+        cleaned["goals"] = goals
+
+    curva = scr.get("curva_vencimentos") if isinstance(scr.get("curva_vencimentos"), list) else []
+    cleaned["creditInsight"] = {
+        "reportId": _text(report_id, "", 80),
+        "orderId": _text(order_id, "", 80),
+        "importedAt": now,
+        "divida_atual": max(0.0, _number(scr.get("divida_atual"))),
+        "quantidade_instituicoes": max(0, int(_number(scr.get("quantidade_instituicoes")))),
+        "quantidade_operacoes": max(0, int(_number(scr.get("quantidade_operacoes")))),
+        "faixa_risco": _text(scr.get("faixa_risco"), "", 60),
+        "curva_vencimentos": curva,
+        "legado_consolidado": bool(scr.get("legado_consolidado")),
+    }
+    return clean_financial_state(cleaned)
 
 
 async def save_financial_state(db, user: dict, raw_state: Any) -> Dict[str, Any]:

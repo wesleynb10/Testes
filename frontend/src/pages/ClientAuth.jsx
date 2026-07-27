@@ -2,7 +2,17 @@ import React, { useState } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { useAuth, formatApiError } from "@/context/AuthContext";
 import { readLeadEmail, saveLeadEmail } from "@/lib/leadEmail";
-import { Gem, Loader2, AlertCircle, Mail, Lock, User, Phone } from "lucide-react";
+import { Gem, Loader2, AlertCircle, Mail, Lock, User, Phone, IdCard } from "lucide-react";
+
+const onlyDigits = (v) => (v || "").replace(/\D/g, "");
+
+function maskCpf(value) {
+  const d = onlyDigits(value).slice(0, 11);
+  return d
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+}
 
 // Tela única de entrada do cliente: alterna entre Entrar e Criar conta.
 // No cadastro pedimos o WhatsApp para vincular os lançamentos recebidos por lá.
@@ -16,6 +26,7 @@ export default function ClientAuth() {
   const [email, setEmail] = useState(() => readLeadEmail());
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
+  const [cpf, setCpf] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -29,7 +40,18 @@ export default function ClientAuth() {
     setError(null);
     try {
       if (mode === "signup") {
-        await register({ name: name.trim(), email: email.trim(), password, phone: phone.trim() });
+        if (onlyDigits(cpf).length !== 11) {
+          setError("Informe um CPF válido para criar a conta.");
+          setBusy(false);
+          return;
+        }
+        await register({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+          phone: phone.trim(),
+          cpf: onlyDigits(cpf),
+        });
       } else {
         await login(email.trim(), password);
       }
@@ -127,16 +149,30 @@ export default function ClientAuth() {
             </Field>
 
             {isSignup && (
-              <Field icon={Phone} label="WhatsApp" hint="Para lançar gastos por mensagem">
-                <input
-                  data-testid="auth-phone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="input-premium"
-                  placeholder="+55 11 99999-9999"
-                />
-              </Field>
+              <>
+                <Field icon={IdCard} label="CPF" hint="Obrigatório · vinculado à conta · não pode ser alterado">
+                  <input
+                    data-testid="auth-cpf"
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    value={cpf}
+                    onChange={(e) => setCpf(maskCpf(e.target.value))}
+                    className="input-premium font-mono-num"
+                    placeholder="000.000.000-00"
+                  />
+                </Field>
+                <Field icon={Phone} label="WhatsApp" hint="Para lançar gastos por mensagem">
+                  <input
+                    data-testid="auth-phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="input-premium"
+                    placeholder="+55 11 99999-9999"
+                  />
+                </Field>
+              </>
             )}
 
             {error && (
