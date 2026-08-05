@@ -27,7 +27,7 @@ const STEPS = [
   {
     key: "whatsapp",
     label: "Vincular WhatsApp (telefone na conta)",
-    to: "/app/lancamentos",
+    to: "/app/conta",
   },
 ];
 
