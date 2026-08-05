@@ -10,6 +10,7 @@ import {
   Receipt,
   Gem,
   ShieldCheck,
+  MessageCircle,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -18,6 +19,7 @@ import { useAuth } from "@/context/AuthContext";
 const items = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, id: "nav-dashboard" },
   { to: "/app/lancamentos", label: "Lançamentos", icon: Receipt, id: "nav-lancamentos" },
+  { to: "/app/conta", label: "WhatsApp", icon: MessageCircle, id: "nav-conta" },
   { to: "/app/orcamento", label: "Orçamento 50/30/20", icon: Wallet, id: "nav-orcamento" },
   { to: "/app/dividas", label: "Controle de Dívidas", icon: TrendingDown, id: "nav-dividas" },
   { to: "/app/metas", label: "Metas & Liberdade", icon: Target, id: "nav-metas" },

@@ -45,13 +45,19 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const setPhone = async (phone) => {
+    const { data } = await client.post("/auth/phone", { phone });
+    setUser(data);
+    return data;
+  };
+
   const logout = async () => {
     try { await client.post("/auth/logout"); } catch {}
     setUser(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, setCpf, refreshUser, logout, api: client }}>
+    <AuthContext.Provider value={{ user, loading, login, register, setCpf, setPhone, refreshUser, logout, api: client }}>
       {children}
     </AuthContext.Provider>
   );
