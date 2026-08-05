@@ -65,52 +65,63 @@ const FAQ = [
 function PackageCard({ pkg, featured, onSelect, loading }) {
   return (
     <div
-      className={`card-premium p-8 flex flex-col relative fade-up ${featured ? "card-gold" : ""}`}
+      className={`card-premium p-6 sm:p-7 flex flex-col relative fade-up h-full min-w-0 overflow-hidden ${featured ? "card-gold" : ""}`}
       style={{
         border: featured ? "2px solid var(--gold)" : "1px solid var(--ink-line)",
-        transform: featured ? "scale(1.02)" : "none",
       }}
       data-testid={`pkg-${pkg.id}`}
     >
       {featured && (
         <div
-          className="absolute -top-3 left-1/2 -translate-x-1/2 chip gold"
+          className="absolute top-3 left-1/2 -translate-x-1/2 chip gold max-w-[calc(100%-1.5rem)] truncate"
           style={{ padding: "6px 14px", fontSize: 11 }}
         >
-          <Star className="w-3 h-3" /> Mais escolhido
+          <Star className="w-3 h-3 shrink-0" /> Mais escolhido
         </div>
       )}
-      <div className="text-center">
-        <div className="text-[13px] font-semibold uppercase tracking-[0.14em] mb-2" style={{ color: featured ? "var(--gold-bright)" : "var(--text-secondary)" }}>
+      <div className={`text-center min-w-0 flex-1 flex flex-col ${featured ? "pt-6" : ""}`}>
+        <div
+          className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-[0.12em] mb-2 break-words px-1"
+          style={{ color: featured ? "var(--gold-bright)" : "var(--text-secondary)" }}
+        >
           {pkg.name}
         </div>
-        <div className="mt-4 mb-2">
+        <div className="mt-3 mb-2 flex items-baseline justify-center gap-0.5 flex-wrap">
           <span className="text-[13px]" style={{ color: "var(--text-muted)" }}>R$</span>
-          <span className="font-display text-[64px] font-mono-num" style={{ letterSpacing: "-0.04em", color: featured ? "var(--gold-bright)" : "var(--text-primary)" }}>
+          <span
+            className="font-display text-[48px] sm:text-[56px] font-mono-num leading-none"
+            style={{ letterSpacing: "-0.04em", color: featured ? "var(--gold-bright)" : "var(--text-primary)" }}
+          >
             {pkg.amount.toFixed(0)}
           </span>
           <span className="text-[13px]" style={{ color: "var(--text-muted)" }}>,00</span>
         </div>
-        <div className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+        <div className="text-[12px] px-1" style={{ color: "var(--text-muted)" }}>
           Pagamento único · Acesso vitalício
         </div>
-        <p className="mt-5 text-[13px]" style={{ color: "var(--text-secondary)" }}>
+        <p
+          className="mt-4 text-[13px] leading-snug break-words px-1"
+          style={{ color: "var(--text-secondary)", overflowWrap: "anywhere" }}
+        >
           {pkg.description}
         </p>
         {(pkg.features?.length > 0 || pkg.credit_reports_included > 0) && (
-          <ul className="mt-5 space-y-2 text-left text-[12px]" style={{ color: "var(--text-secondary)" }}>
+          <ul
+            className="mt-5 space-y-2.5 text-left text-[12px] leading-snug min-w-0"
+            style={{ color: "var(--text-secondary)" }}
+          >
             {(pkg.features || []).map((f, i) => (
-              <li key={i} className="flex items-start gap-2">
+              <li key={i} className="flex items-start gap-2 min-w-0">
                 <Check className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "var(--gold-bright)" }} />
-                <span>{f}</span>
+                <span className="min-w-0 break-words" style={{ overflowWrap: "anywhere" }}>{f}</span>
               </li>
             ))}
             {!pkg.features?.length && pkg.credit_reports_included > 0 && (
-              <li className="flex items-start gap-2">
+              <li className="flex items-start gap-2 min-w-0">
                 <Check className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "var(--gold-bright)" }} />
-                <span>
+                <span className="min-w-0 break-words" style={{ overflowWrap: "anywhere" }}>
                   {pkg.credit_reports_included} consulta{pkg.credit_reports_included > 1 ? "s" : ""} de crédito inclusa
-                  {pkg.credit_reports_included > 1 ? "s" : ""} — você escolhe as fontes
+                  {pkg.credit_reports_included > 1 ? "s" : ""}
                 </span>
               </li>
             )}
@@ -121,11 +132,11 @@ function PackageCard({ pkg, featured, onSelect, loading }) {
         data-testid={`btn-buy-${pkg.id}`}
         onClick={() => onSelect(pkg.id)}
         disabled={loading}
-        className={featured ? "btn-gold" : "btn-ghost"}
+        className={`${featured ? "btn-gold" : "btn-ghost"} w-full mt-auto shrink-0`}
         style={{ marginTop: 24, opacity: loading ? 0.5 : 1, display: "flex", justifyContent: "center", alignItems: "center", gap: 8 }}
       >
         {loading ? "Redirecionando..." : "Quero esse plano"}
-        <ChevronRight className="w-4 h-4" />
+        <ChevronRight className="w-4 h-4 shrink-0" />
       </button>
     </div>
   );
