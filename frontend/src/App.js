@@ -15,6 +15,7 @@ import Projection from "@/pages/Projection";
 import Bonus from "@/pages/Bonus";
 import Scope from "@/pages/Scope";
 import Transactions from "@/pages/Transactions";
+import Conta from "@/pages/Conta";
 import ClientAuth from "@/pages/ClientAuth";
 import Onboarding from "@/pages/Onboarding";
 import Calculator from "@/pages/Calculator";
@@ -64,6 +65,7 @@ function App() {
               <Route path="/app/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
               <Route path="/app" element={<RequireAuth><RequireOnboarding><Dashboard /></RequireOnboarding></RequireAuth>} />
               <Route path="/app/lancamentos" element={<RequireAuth><RequireOnboarding><Transactions /></RequireOnboarding></RequireAuth>} />
+              <Route path="/app/conta" element={<RequireAuth><RequireOnboarding><Conta /></RequireOnboarding></RequireAuth>} />
               <Route path="/app/orcamento" element={<RequireAuth><RequireOnboarding><Budget /></RequireOnboarding></RequireAuth>} />
               <Route path="/app/dividas" element={<RequireAuth><RequireOnboarding><Debts /></RequireOnboarding></RequireAuth>} />
               <Route path="/app/metas" element={<RequireAuth><RequireOnboarding><Goals /></RequireOnboarding></RequireAuth>} />

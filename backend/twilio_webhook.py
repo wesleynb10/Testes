@@ -612,7 +612,7 @@ async def twilio_whatsapp_webhook(
         app_url = os.environ.get("FRONTEND_URL", "https://finpremium.app").rstrip("/")
         return twiml_message(
             f"Olá! Não encontrei este WhatsApp ({phone}) na FinPremium. "
-            f"Cadastre-se ou vincule seu número em {app_url} e tente de novo."
+            f"Vincule seu número em {app_url}/app/conta e tente de novo."
         )
 
     try:

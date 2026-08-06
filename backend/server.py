@@ -122,33 +122,37 @@ PACKAGES: Dict[str, Dict[str, Any]] = {
         "name": "FinPremium Starter",
         "amount": 47.00,
         "currency": "brl",
-        "description": "Planilha + 3 bônus básicos + 1 consulta de crédito",
+        "description": "Planilha, 3 bônus e 1 consulta de crédito.",
         "credit_reports_included": 1,
         "features": [
             "Planilha + 3 bônus básicos",
-            "1 consulta de crédito inclusa (Score, SCR, negativações, PGFN — você escolhe)",
+            "1 consulta de crédito inclusa",
+            "Fontes à escolha: Score, SCR, PGFN",
         ],
     },
     "complete": {
         "name": "FinPremium Completo",
         "amount": 97.00,
         "currency": "brl",
-        "description": "Planilha + 6 bônus + comunidade + 3 consultas de crédito",
+        "description": "Planilha, 6 bônus, comunidade e 3 consultas.",
         "credit_reports_included": 3,
         "features": [
-            "Planilha + 6 bônus + comunidade + acesso vitalício",
-            "3 consultas de crédito inclusas (você escolhe quais fontes consultar)",
+            "Planilha + 6 bônus + comunidade",
+            "Acesso vitalício à plataforma",
+            "3 consultas de crédito inclusas",
         ],
     },
     "premium_plus": {
         "name": "FinPremium Plus + Mentoria",
         "amount": 297.00,
         "currency": "brl",
-        "description": "Tudo + mentoria + 12 consultas de crédito",
+        "description": "Tudo do Completo, mentoria e 12 consultas.",
         "credit_reports_included": 12,
         "features": [
-            "Tudo do Completo + mentoria em grupo mensal + suporte prioritário",
-            "12 consultas de crédito inclusas (você escolhe quais fontes consultar)",
+            "Tudo do plano Completo",
+            "Mentoria em grupo mensal",
+            "Suporte prioritário",
+            "12 consultas de crédito inclusas",
         ],
     },
 }
@@ -207,6 +211,9 @@ class RegisterRequest(BaseModel):
 
 class SetCpfRequest(BaseModel):
     cpf: str  # CPF do titular (com ou sem máscara); não pode ser alterado depois
+
+class SetPhoneRequest(BaseModel):
+    phone: str  # WhatsApp com DDI (ex.: +5585999999999)
 
 class TransactionCreate(BaseModel):
     amount: float
@@ -566,6 +573,35 @@ async def register(payload: RegisterRequest, response: Response):
 async def set_cpf(payload: SetCpfRequest, current: dict = Depends(get_current_user)):
     """Vincula o CPF do titular à conta. Set-once — não pode ser alterado."""
     user = await _attach_cpf_to_user(current["id"], payload.cpf)
+    return _public_user(user)
+
+
+@api_router.post("/auth/phone")
+async def set_phone(payload: SetPhoneRequest, current: dict = Depends(get_current_user)):
+    """Vincula (ou atualiza) o WhatsApp da conta para lançamentos via Twilio."""
+    phone = limpar_telefone(payload.phone or "")
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if not phone or len(digits) < 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Informe um WhatsApp válido com DDI (ex.: +5585999999999).",
+        )
+    other = await db.users.find_one(
+        {
+            "id": {"$ne": current["id"]},
+            "$or": [{"phone": phone}, {"whatsapp": f"whatsapp:{phone}"}],
+        }
+    )
+    if other:
+        raise HTTPException(
+            status_code=409,
+            detail="Este WhatsApp já está vinculado a outra conta.",
+        )
+    await db.users.update_one(
+        {"id": current["id"]},
+        {"$set": {"phone": phone, "whatsapp": f"whatsapp:{phone}"}},
+    )
+    user = await db.users.find_one({"id": current["id"]}) or current
     return _public_user(user)
 
 
