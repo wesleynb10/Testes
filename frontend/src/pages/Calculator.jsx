@@ -1,8 +1,13 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { brl } from "@/lib/format";
 import { saveLeadEmail } from "@/lib/leadEmail";
+import {
+  buildLeadWhatsAppMessage,
+  buildWhatsAppLeadUrl,
+  fetchWhatsAppLeadConfig,
+} from "@/lib/whatsappLead";
 import { useAuth } from "@/context/AuthContext";
 import {
   ResponsiveContainer,
@@ -13,7 +18,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { Sparkles, ChevronRight, Gem, Mail, TrendingUp } from "lucide-react";
+import { Sparkles, ChevronRight, Gem, Mail, MessageCircle, TrendingUp } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -25,9 +30,15 @@ export default function Calculator() {
   const [monthly, setMonthly] = useState(500);
   const [years, setYears] = useState(20);
   const [rate, setRate] = useState(0.9); // % ao mês
-  const [showLead, setShowLead] = useState(false);
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
+  const [channelHint, setChannelHint] = useState("");
+  const [waConfig, setWaConfig] = useState({ enabled: false, e164: "" });
+  const [waBusy, setWaBusy] = useState(false);
+
+  useEffect(() => {
+    fetchWhatsAppLeadConfig(API).then(setWaConfig);
+  }, []);
 
   const projection = useMemo(() => {
     const r = rate / 100;
@@ -56,26 +67,75 @@ export default function Calculator() {
   const totalJuros = final ? final.juros : 0;
   const totalInvestido = final ? final.investido : 0;
 
+  const calcMeta = () => ({
+    initial,
+    monthly,
+    years,
+    rate,
+    patrimonio: final?.patrimonio || 0,
+  });
+
+  const persistLocalLead = (payload) => {
+    const leads = JSON.parse(localStorage.getItem("finpremium_leads") || "[]");
+    leads.push({ ...payload, date: new Date().toISOString() });
+    localStorage.setItem("finpremium_leads", JSON.stringify(leads));
+  };
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (email && email.includes("@")) {
-      saveLeadEmail(email);
-      // Persist locally (works offline / no-backend)
-      const leads = JSON.parse(localStorage.getItem("finpremium_leads") || "[]");
-      leads.push({ email, date: new Date().toISOString(), source: "calculadora" });
-      localStorage.setItem("finpremium_leads", JSON.stringify(leads));
-      // Fire-and-forget to backend (so infoprodutor can see the leads)
-      try {
-        await axios.post(`${API}/leads`, {
-          email,
-          source: "calculadora",
-          metadata: { initial, monthly, years, rate },
-        });
-      } catch (err) {
-        console.warn("Backend lead capture failed", err);
-      }
-      setSubscribed(true);
+    e?.preventDefault?.();
+    if (!(email && email.includes("@"))) {
+      // Site path ainda precisa de e-mail; WhatsApp é o atalho sem e-mail.
+      document.querySelector('[data-testid="lead-email"]')?.focus();
+      return;
     }
+    saveLeadEmail(email);
+    persistLocalLead({ email, source: "calculadora", preferred_channel: "email" });
+    try {
+      await axios.post(`${API}/leads`, {
+        email,
+        preferred_channel: "email",
+        source: "calculadora",
+        metadata: calcMeta(),
+      });
+    } catch (err) {
+      console.warn("Backend lead capture failed", err);
+    }
+    setChannelHint("email");
+    setSubscribed(true);
+  };
+
+  const handleWhatsAppPath = async () => {
+    if (!waConfig.enabled || !waConfig.e164) return;
+    setWaBusy(true);
+    const meta = calcMeta();
+    const msg = buildLeadWhatsAppMessage({
+      monthly: meta.monthly,
+      years: meta.years,
+      patrimonio: meta.patrimonio,
+      email: email.includes("@") ? email : undefined,
+    });
+    if (email && email.includes("@")) saveLeadEmail(email);
+    persistLocalLead({
+      email: email || null,
+      source: "calculadora_whatsapp",
+      preferred_channel: "whatsapp",
+      metadata: meta,
+    });
+    try {
+      await axios.post(`${API}/leads`, {
+        email: email.includes("@") ? email : undefined,
+        preferred_channel: "whatsapp",
+        source: "calculadora_whatsapp",
+        metadata: meta,
+      });
+    } catch (err) {
+      console.warn("Backend WhatsApp lead capture failed", err);
+    }
+    const url = buildWhatsAppLeadUrl(waConfig.e164, msg);
+    setChannelHint("whatsapp");
+    setSubscribed(true);
+    setWaBusy(false);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -267,28 +327,27 @@ export default function Calculator() {
           </div>
         </div>
 
-        {/* Lead capture */}
+        {/* Lead capture — lead escolhe site/e-mail ou WhatsApp */}
         <div className="mt-12 card-gold p-8 fade-up" data-testid="lead-magnet">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles className="w-4 h-4" style={{ color: "var(--gold-bright)" }} />
-                <div className="eyebrow">Bônus grátis</div>
+                <div className="eyebrow">Escolha como continuar</div>
               </div>
               <h3 className="font-display text-[28px] mb-3 text-shimmer" style={{ letterSpacing: "-0.03em" }}>
-                Salve seu resultado e receba dicas de investimento
+                Salve o resultado no site ou comece pelo WhatsApp
               </h3>
               <p className="text-[14px]" style={{ color: "var(--text-secondary)" }}>
-                Deixe seu melhor e-mail. Entramos em contato com conteúdos úteis — sem prometer PDF na caixa de entrada.
+                No site você vê planos e o app completo. No WhatsApp você testa registrar gastos em segundos — o plano continua no FinPremium.
               </p>
             </div>
             {!subscribed ? (
-              <form onSubmit={handleSubmit} className="space-y-3" data-testid="lead-form">
+              <div className="space-y-3" data-testid="lead-form">
                 <input
                   data-testid="lead-email"
                   type="email"
-                  required
-                  placeholder="seu@email.com"
+                  placeholder="seu@email.com (opcional no WhatsApp)"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="input-premium"
@@ -296,16 +355,30 @@ export default function Calculator() {
                 />
                 <button
                   data-testid="lead-submit"
-                  type="submit"
+                  type="button"
+                  onClick={handleSubmit}
                   className="btn-gold w-full"
                   style={{ padding: "14px 20px", fontSize: 15, display: "flex", justifyContent: "center", alignItems: "center", gap: 8 }}
                 >
-                  <Mail className="w-4 h-4" /> Quero receber dicas
+                  <Mail className="w-4 h-4" /> Continuar no site
                 </button>
+                {waConfig.enabled && (
+                  <button
+                    data-testid="lead-whatsapp"
+                    type="button"
+                    onClick={handleWhatsAppPath}
+                    disabled={waBusy}
+                    className="btn-ghost w-full"
+                    style={{ padding: "14px 20px", fontSize: 15, display: "flex", justifyContent: "center", alignItems: "center", gap: 8, opacity: waBusy ? 0.6 : 1 }}
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    {waBusy ? "Abrindo WhatsApp..." : "Começar pelo WhatsApp"}
+                  </button>
+                )}
                 <div className="text-[11px] text-center" style={{ color: "var(--text-muted)" }}>
-                  Sem spam. Você pode pedir para sair a qualquer momento.
+                  Você escolhe o canal. Sem spam — peça para sair quando quiser.
                 </div>
-              </form>
+              </div>
             ) : (
               <div className="text-center py-6" data-testid="lead-success">
                 <div
@@ -314,10 +387,36 @@ export default function Calculator() {
                 >
                   <Sparkles className="w-6 h-6" style={{ color: "var(--ink-void)" }} />
                 </div>
-                <div className="font-display text-[22px] mb-1">E-mail salvo!</div>
-                <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                  Seu contato foi registrado. Continue explorando o FinPremium quando quiser.
+                <div className="font-display text-[22px] mb-1">
+                  {channelHint === "whatsapp" ? "WhatsApp a caminho!" : "Contato salvo!"}
+                </div>
+                <p className="text-[13px] mb-4" style={{ color: "var(--text-secondary)" }}>
+                  {channelHint === "whatsapp"
+                    ? "Abrimos o chat com seu resultado. Mande a mensagem e teste o primeiro lançamento."
+                    : "Seu e-mail foi registrado. Veja os planos ou explore o app quando quiser."}
                 </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    type="button"
+                    onClick={() => nav("/")}
+                    className="btn-gold"
+                    data-testid="lead-success-plans"
+                    style={{ padding: "12px 18px", fontSize: 14 }}
+                  >
+                    Ver planos
+                  </button>
+                  {waConfig.enabled && channelHint !== "whatsapp" && (
+                    <button
+                      type="button"
+                      onClick={handleWhatsAppPath}
+                      className="btn-ghost"
+                      data-testid="lead-success-whatsapp"
+                      style={{ padding: "12px 18px", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 8 }}
+                    >
+                      <MessageCircle className="w-4 h-4" /> Prefiro WhatsApp
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -332,13 +431,26 @@ export default function Calculator() {
           <p className="text-[14px] mb-6 max-w-lg mx-auto" style={{ color: "var(--text-secondary)" }}>
             Dashboard executivo, orçamento inteligente, simulador de dívidas e Número da Liberdade. Tudo em Dark Mode Premium.
           </p>
-          <button
-            onClick={() => nav(loggedIn ? "/app" : "/app/entrar")}
-            className="btn-gold"
-            data-testid="explore-app-btn"
-          >
-            {loggedIn ? "Abrir meu painel" : "Criar conta grátis"} <ChevronRight className="w-4 h-4 inline ml-1" />
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <button
+              onClick={() => nav(loggedIn ? "/app" : "/app/entrar")}
+              className="btn-gold"
+              data-testid="explore-app-btn"
+            >
+              {loggedIn ? "Abrir meu painel" : "Criar conta grátis"} <ChevronRight className="w-4 h-4 inline ml-1" />
+            </button>
+            {waConfig.enabled && (
+              <button
+                type="button"
+                onClick={handleWhatsAppPath}
+                className="btn-ghost"
+                data-testid="cta-whatsapp-btn"
+                style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+              >
+                <MessageCircle className="w-4 h-4" /> Testar pelo WhatsApp
+              </button>
+            )}
+          </div>
         </div>
       </main>
 

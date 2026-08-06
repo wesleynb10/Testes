@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useAuth, formatApiError } from "@/context/AuthContext";
 import { useFinance } from "@/context/FinanceContext";
-import { brl, stripLeadingZeros } from "@/lib/format";
+import { brl, parseNum } from "@/lib/format";
+import { MoneyInput } from "@/components/FormattedInputs";
 import { subcategoriesFor, OTHER_OPTION } from "@/lib/subcategories";
 import {
   Plus, Loader2, Trash2, MessageCircle, Smartphone, AlertCircle, Receipt, Pencil, X, Check,
@@ -128,7 +129,7 @@ export default function Transactions() {
 
   const submit = async (e) => {
     e.preventDefault();
-    const amount = parseFloat(String(form.amount).replace(",", "."));
+    const amount = parseNum(form.amount);
     if (!amount || amount <= 0) { setError("Informe um valor válido."); return; }
     setBusy(true);
     setError(null);
@@ -184,7 +185,7 @@ export default function Transactions() {
 
   const saveEdit = async (e) => {
     e.preventDefault();
-    const amount = parseFloat(String(editForm.amount).replace(",", "."));
+    const amount = parseNum(editForm.amount);
     if (!amount || amount <= 0) { setEditError("Informe um valor válido."); return; }
     setEditBusy(true);
     setEditError(null);
@@ -234,7 +235,12 @@ export default function Transactions() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
           <div>
             <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Valor (R$)</label>
-            <input data-testid="tx-amount" className="input-premium" inputMode="decimal" placeholder="42,50" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: stripLeadingZeros(e.target.value) }))} />
+            <MoneyInput
+              data-testid="tx-amount"
+              placeholder="42,50"
+              value={form.amount}
+              onChange={(amount) => setForm((f) => ({ ...f, amount }))}
+            />
           </div>
           <div>
             <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Categoria</label>
@@ -353,8 +359,11 @@ export default function Transactions() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Valor (R$)</label>
-                <input data-testid="tx-edit-amount" className="input-premium" inputMode="decimal" value={editForm.amount}
-                  onChange={(e) => setEditForm((f) => ({ ...f, amount: stripLeadingZeros(e.target.value) }))} />
+                <MoneyInput
+                  data-testid="tx-edit-amount"
+                  value={editForm.amount}
+                  onChange={(amount) => setEditForm((f) => ({ ...f, amount }))}
+                />
               </div>
               <div>
                 <label className="text-[11px] uppercase tracking-[0.14em] block mb-2" style={{ color: "var(--text-muted)" }}>Categoria</label>

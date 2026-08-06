@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useFinance } from "@/context/FinanceContext";
-import { brl, pct, parseNum, stripLeadingZeros } from "@/lib/format";
+import { brl, pct, parseNum } from "@/lib/format";
+import { MoneyInput, PctInput } from "@/components/FormattedInputs";
 import {
   Plus, Trash2, Upload, Save, Check, SlidersHorizontal, RotateCcw, AlertTriangle, TrendingUp,
 } from "lucide-react";
@@ -120,19 +121,15 @@ function CategoryBlock({ cat, income }) {
                   />
                 </td>
                 <td>
-                  <input
+                  <MoneyInput
                     data-testid={`budget-${cat.key}-planned-${it.id}`}
-                    type="number"
-                    className="input-premium font-mono-num"
                     value={it.planned}
-                    onChange={(e) => updateBudgetItem(cat.key, it.id, { planned: parseNum(e.target.value) })}
+                    onValueChange={(planned) => updateBudgetItem(cat.key, it.id, { planned })}
                   />
                 </td>
                 <td>
-                  <input
+                  <MoneyInput
                     data-testid={`budget-${cat.key}-actual-${it.id}`}
-                    type="number"
-                    className="input-premium font-mono-num"
                     value={it.actual}
                     readOnly
                     title="Calculado automaticamente pelos lançamentos do mês"
@@ -168,13 +165,11 @@ function CategoryBlock({ cat, income }) {
               />
             </td>
             <td>
-              <input
+              <MoneyInput
                 data-testid={`budget-${cat.key}-new-planned`}
-                type="number"
-                className="input-premium font-mono-num"
                 placeholder="0"
                 value={newPlanned}
-                onChange={(e) => setNewPlanned(stripLeadingZeros(e.target.value))}
+                onChange={setNewPlanned}
                 onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               />
             </td>
@@ -227,7 +222,7 @@ function BudgetRuleCard({ rule, ruleSum, updateBudgetRule, saveNow }) {
   const [busy, setBusy] = useState(false);
   const valid = Math.round(ruleSum) === 100;
 
-  const setPct = (key) => (e) => updateBudgetRule({ [key]: Math.max(0, Math.min(100, parseNum(e.target.value))) });
+  const setPct = (key) => (n) => updateBudgetRule({ [key]: Math.max(0, Math.min(100, Number(n) || 0)) });
 
   const restore = () => updateBudgetRule({ ...DEFAULT_RULE });
 
@@ -276,14 +271,11 @@ function BudgetRuleCard({ rule, ruleSum, updateBudgetRule, saveNow }) {
                   <span className="w-2.5 h-2.5 rounded-sm" style={{ background: c.color }} />
                   {c.label} (%)
                 </label>
-                <input
+                <PctInput
                   data-testid={`budget-rule-${c.key}`}
-                  type="number"
-                  min="0"
-                  max="100"
-                  className="input-premium font-mono-num text-[18px]"
+                  className="text-[18px]"
                   value={rule[c.key]}
-                  onChange={setPct(c.key)}
+                  onValueChange={setPct(c.key)}
                 />
               </div>
             ))}
@@ -469,12 +461,11 @@ export default function Budget() {
       <div className="card-premium p-6 flex items-end gap-6 flex-wrap" data-testid="income-card">
         <div className="flex-1 min-w-[220px]">
           <div className="kpi-label mb-2">Renda mensal líquida</div>
-          <input
+          <MoneyInput
             data-testid="income-input"
-            type="number"
-            className="input-premium font-mono-num text-[22px] font-display"
+            className="text-[22px] font-display"
             value={income}
-            onChange={(e) => handleIncomeChange(e.target.value)}
+            onValueChange={handleIncomeChange}
           />
         </div>
         <div className="flex-1 grid grid-cols-3 gap-3 min-w-[280px]">

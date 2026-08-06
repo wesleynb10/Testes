@@ -7,6 +7,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depend
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import re
 import logging
 import asyncio
 from pydantic import BaseModel, Field, ConfigDict
@@ -193,7 +194,11 @@ class CheckoutCreateRequest(BaseModel):
     email: Optional[str] = None
 
 class LeadCreate(BaseModel):
-    email: str
+    # Contato: email e/ou phone. preferred_channel marca a escolha do lead
+    # (site | email | whatsapp) — WhatsApp é caminho opcional de teste.
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    preferred_channel: Optional[str] = None
     source: Optional[str] = "calculadora"
     metadata: Optional[Dict[str, Any]] = None
 
@@ -472,6 +477,36 @@ async def get_current_admin(request: Request):
 @api_router.get("/")
 async def root():
     return {"message": "FinPremium API v1.4 - Wealth OS"}
+
+
+def _lead_whatsapp_e164() -> str:
+    """Número público para wa.me (só dígitos). LEAD_WHATSAPP_E164 ou fallback Twilio."""
+    raw = (
+        os.environ.get("LEAD_WHATSAPP_E164")
+        or os.environ.get("TWILIO_PHONE_NUMBER")
+        or ""
+    ).strip()
+    digits = re.sub(r"\D", "", raw)
+    return digits
+
+
+@api_router.get("/public-config")
+async def public_config():
+    """Config segura para o funil (sem secrets). Inclui ponte WhatsApp de teste."""
+    e164 = _lead_whatsapp_e164()
+    enabled_raw = (os.environ.get("LEAD_WHATSAPP_ENABLED") or "").strip().lower()
+    if enabled_raw in ("0", "false", "no", "off"):
+        enabled = False
+    elif enabled_raw in ("1", "true", "yes", "on"):
+        enabled = bool(e164)
+    else:
+        # Default: liga se houver número configurado (MVP de teste).
+        enabled = bool(e164)
+    return {
+        "whatsapp_lead_enabled": enabled,
+        "whatsapp_lead_e164": e164 if enabled else "",
+    }
+
 
 @api_router.get("/packages")
 async def get_packages():
@@ -869,13 +904,37 @@ async def delete_transaction(tx_id: str, current: dict = Depends(get_current_use
 # =============================================================================
 @api_router.post("/leads")
 async def create_lead(payload: LeadCreate):
-    if "@" not in payload.email or "." not in payload.email:
+    email = (payload.email or "").lower().strip()
+    phone = limpar_telefone(payload.phone or "") if (payload.phone or "").strip() else ""
+    channel = (payload.preferred_channel or "").strip().lower() or None
+    if channel and channel not in ("site", "email", "whatsapp"):
+        channel = None
+
+    if email and ("@" not in email or "." not in email):
         raise HTTPException(status_code=400, detail="Invalid email")
+    if not email and not phone:
+        # WhatsApp-only: gera placeholder rastreável para o admin/drip não quebrar.
+        if channel == "whatsapp":
+            email = f"wa_{uuid.uuid4().hex[:10]}@lead.finpremium.local"
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Informe e-mail ou WhatsApp para salvar o lead.",
+            )
+
+    meta = dict(payload.metadata or {})
+    if channel:
+        meta["preferred_channel"] = channel
+    if phone:
+        meta["phone"] = phone
+
     doc = {
         "id": str(uuid.uuid4()),
-        "email": payload.email.lower().strip(),
+        "email": email,
+        "phone": phone or None,
+        "preferred_channel": channel,
         "source": payload.source or "unknown",
-        "metadata": payload.metadata or {},
+        "metadata": meta,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.leads.insert_one(doc)
@@ -883,12 +942,19 @@ async def create_lead(payload: LeadCreate):
         await notify_new_lead(doc["email"], doc["source"], doc["metadata"])
     except Exception as e:
         logging.warning(f"Lead notify failed: {e}")
-    # Kick off the 5-email drip sequence
-    try:
-        await schedule_drip(db, doc["email"], doc["id"], doc["metadata"])
-    except Exception as e:
-        logging.warning(f"Drip schedule failed: {e}")
-    return {"success": True, "id": doc["id"]}
+    # Drip só para e-mails reais; quem escolheu WhatsApp não entra na sequência agora.
+    is_placeholder = email.endswith("@lead.finpremium.local")
+    if email and not is_placeholder and channel != "whatsapp":
+        try:
+            await schedule_drip(db, doc["email"], doc["id"], doc["metadata"])
+        except Exception as e:
+            logging.warning(f"Drip schedule failed: {e}")
+    return {
+        "success": True,
+        "id": doc["id"],
+        "preferred_channel": channel,
+        "whatsapp_lead_e164": _lead_whatsapp_e164() if channel == "whatsapp" else None,
+    }
 
 @api_router.get("/leads/count")
 async def leads_count():

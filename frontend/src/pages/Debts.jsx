@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Reorder, useDragControls } from "framer-motion";
 import { useFinance } from "@/context/FinanceContext";
-import { brl, parseNum, stripLeadingZeros } from "@/lib/format";
+import { brl, formatMoneyInput, parseNum } from "@/lib/format";
+import { IntInput, MoneyInput, PctInput } from "@/components/FormattedInputs";
 import {
   Plus, Trash2, Snowflake, Zap, TrendingDown, Check, Loader2,
   ListOrdered, ChevronUp, ChevronDown, CalendarRange, Wallet, GripVertical,
@@ -587,13 +588,11 @@ export default function Debts() {
 
           <div className="min-w-0">
             <div className="kpi-label mb-3">Aporte extra mensal</div>
-            <input
+            <MoneyInput
               data-testid="extra-payment-input"
-              type="number"
-              min={0}
-              className="input-premium font-mono-num font-display text-[22px] w-full"
+              className="font-display text-[22px] w-full"
               value={extra}
-              onChange={(e) => setExtra(parseNum(e.target.value))}
+              onValueChange={setExtra}
             />
             <div className="flex flex-wrap gap-2 mt-3" data-testid="extra-presets">
               {EXTRA_PRESETS.map((value) => (
@@ -931,13 +930,16 @@ export default function Debts() {
               </div>
               <div>
                 <label className="text-[10px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>Quanto deve</label>
-                <input data-testid={`debt-balance-${d.id}`} type="number" className="input-premium font-mono-num" value={d.balance}
-                  onChange={(e) => updateDebt(d.id, { balance: parseNum(e.target.value) })} />
+                <MoneyInput
+                  data-testid={`debt-balance-${d.id}`}
+                  value={d.balance}
+                  onValueChange={(balance) => updateDebt(d.id, { balance })}
+                />
               </div>
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <label className="text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
-                    Juros %
+                    Juros
                   </label>
                   <div className="flex gap-1" data-testid={`debt-rate-period-${d.id}`}>
                     {["am", "aa"].map((period) => (
@@ -953,13 +955,10 @@ export default function Debts() {
                     ))}
                   </div>
                 </div>
-                <input
+                <PctInput
                   data-testid={`debt-rate-${d.id}`}
-                  type="number"
-                  step="0.01"
-                  className="input-premium font-mono-num"
                   value={d.rate}
-                  onChange={(e) => updateDebt(d.id, { rate: parseNum(e.target.value) })}
+                  onValueChange={(rate) => updateDebt(d.id, { rate })}
                 />
                 <div className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>
                   {(d.ratePeriod || "am") === "aa"
@@ -969,8 +968,11 @@ export default function Debts() {
               </div>
               <div>
                 <label className="text-[10px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>Parcela mensal</label>
-                <input data-testid={`debt-min-${d.id}`} type="number" className="input-premium font-mono-num" value={d.minPayment}
-                  onChange={(e) => updateDebt(d.id, { minPayment: parseNum(e.target.value) })} />
+                <MoneyInput
+                  data-testid={`debt-min-${d.id}`}
+                  value={d.minPayment}
+                  onValueChange={(minPayment) => updateDebt(d.id, { minPayment })}
+                />
                 {d.balance > 0 && d.termMonths > 0 && (
                   <button
                     type="button"
@@ -987,17 +989,15 @@ export default function Debts() {
                 )}
               </div>
               <div>
-                <label className="text-[10px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>Prazo (meses)</label>
-                <input
+                <label className="text-[10px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>Prazo</label>
+                <IntInput
                   data-testid={`debt-term-${d.id}`}
-                  type="number"
-                  min={0}
-                  className="input-premium font-mono-num"
-                  value={d.termMonths || ""}
+                  suffix="meses"
                   placeholder="—"
-                  onChange={(e) =>
+                  value={d.termMonths || ""}
+                  onValueChange={(termMonths) =>
                     updateDebt(d.id, {
-                      termMonths: Math.max(0, Math.min(600, Math.round(parseNum(e.target.value)))),
+                      termMonths: Math.max(0, Math.min(600, termMonths)),
                     })
                   }
                 />
@@ -1054,13 +1054,17 @@ export default function Debts() {
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>Quanto deve</label>
-              <input data-testid="debt-new-balance" type="number" className="input-premium font-mono-num" placeholder="Ex: 25000"
-                value={newDebt.balance} onChange={(e) => setNewDebt({ ...newDebt, balance: stripLeadingZeros(e.target.value) })} />
+              <MoneyInput
+                data-testid="debt-new-balance"
+                placeholder="25.000"
+                value={newDebt.balance}
+                onChange={(balance) => setNewDebt({ ...newDebt, balance })}
+              />
             </div>
             <div>
               <div className="flex items-center justify-between gap-2 mb-1.5">
                 <label className="text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
-                  Juros %
+                  Juros
                 </label>
                 <div className="flex gap-1" data-testid="debt-new-rate-period">
                   {["am", "aa"].map((period) => (
@@ -1076,13 +1080,21 @@ export default function Debts() {
                   ))}
                 </div>
               </div>
-              <input data-testid="debt-new-rate" type="number" step="0.01" className="input-premium font-mono-num" placeholder={newDebt.ratePeriod === "aa" ? "Ex: 2" : "Ex: 1,5"}
-                value={newDebt.rate} onChange={(e) => setNewDebt({ ...newDebt, rate: stripLeadingZeros(e.target.value) })} />
+              <PctInput
+                data-testid="debt-new-rate"
+                placeholder={newDebt.ratePeriod === "aa" ? "2" : "1,5"}
+                value={newDebt.rate}
+                onChange={(rate) => setNewDebt({ ...newDebt, rate })}
+              />
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>Parcela mensal</label>
-              <input data-testid="debt-new-min" type="number" className="input-premium font-mono-num" placeholder="Parcela / mês"
-                value={newDebt.minPayment} onChange={(e) => setNewDebt({ ...newDebt, minPayment: stripLeadingZeros(e.target.value) })} />
+              <MoneyInput
+                data-testid="debt-new-min"
+                placeholder="890"
+                value={newDebt.minPayment}
+                onChange={(minPayment) => setNewDebt({ ...newDebt, minPayment })}
+              />
               {parseNum(newDebt.balance) > 0 && parseNum(newDebt.termMonths) > 0 && (
                 <button
                   type="button"
@@ -1092,7 +1104,7 @@ export default function Debts() {
                   onClick={() => {
                     const monthly = newDebt.ratePeriod === "aa" ? parseNum(newDebt.rate) / 12 : parseNum(newDebt.rate);
                     const pmt = priceInstallment(parseNum(newDebt.balance), monthly, parseNum(newDebt.termMonths));
-                    setNewDebt({ ...newDebt, minPayment: String(Math.round(pmt * 100) / 100) });
+                    setNewDebt({ ...newDebt, minPayment: formatMoneyInput(Math.round(pmt * 100) / 100) });
                   }}
                 >
                   Calcular parcela Preço
@@ -1100,9 +1112,14 @@ export default function Debts() {
               )}
             </div>
             <div>
-              <label className="text-[10px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>Prazo (meses)</label>
-              <input data-testid="debt-new-term" type="number" min={0} className="input-premium font-mono-num" placeholder="Ex: 12"
-                value={newDebt.termMonths} onChange={(e) => setNewDebt({ ...newDebt, termMonths: stripLeadingZeros(e.target.value) })} />
+              <label className="text-[10px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>Prazo</label>
+              <IntInput
+                data-testid="debt-new-term"
+                placeholder="12"
+                suffix="meses"
+                value={newDebt.termMonths}
+                onChange={(termMonths) => setNewDebt({ ...newDebt, termMonths })}
+              />
             </div>
           </div>
           <div className="flex justify-end">

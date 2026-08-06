@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { useFinance } from "@/context/FinanceContext";
 import { brl, pct, parseNum } from "@/lib/format";
+import { MoneyInput, PctInput } from "@/components/FormattedInputs";
 import { DatePicker } from "@/components/DatePicker";
 import { Plus, Trash2, Target as TargetIcon, Sparkles } from "lucide-react";
 
@@ -179,13 +180,11 @@ export default function Goals() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label className="text-[12px] block mb-1.5" style={{ color: "var(--text-secondary)" }}>Gasto mensal desejado no futuro</label>
-              <input
+              <MoneyInput
                 ref={expensesInputRef}
                 data-testid="fire-monthly-expenses"
-                type="number"
-                className="input-premium font-mono-num"
                 value={fire.monthlyExpenses}
-                onChange={(e) => updateFire({ monthlyExpenses: parseNum(e.target.value) })}
+                onValueChange={(monthlyExpenses) => updateFire({ monthlyExpenses })}
               />
               <div className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
                 Este campo define o Número da Liberdade (padrão de vida futuro)
@@ -193,30 +192,38 @@ export default function Goals() {
             </div>
             <div>
               <label className="text-[12px] block mb-1.5" style={{ color: "var(--text-secondary)" }}>Taxa de retirada segura (SWR)</label>
-              <input data-testid="fire-swr" type="number" step="0.1" className="input-premium font-mono-num"
+              <PctInput
+                data-testid="fire-swr"
                 value={fire.safeWithdrawal}
-                onChange={(e) => updateFire({ safeWithdrawal: parseNum(e.target.value) })} />
+                onValueChange={(safeWithdrawal) => updateFire({ safeWithdrawal })}
+              />
               <div className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>Regra dos 4% é o padrão global (Trinity Study)</div>
             </div>
             <div>
               <label className="text-[12px] block mb-1.5" style={{ color: "var(--text-secondary)" }}>Patrimônio investido hoje</label>
-              <input data-testid="fire-current" type="number" className="input-premium font-mono-num"
+              <MoneyInput
+                data-testid="fire-current"
                 value={fire.currentInvested}
-                onChange={(e) => updateFire({ currentInvested: parseNum(e.target.value) })} />
+                onValueChange={(currentInvested) => updateFire({ currentInvested })}
+              />
               <div className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>Soma de tudo que gera renda: FIIs, ações, renda fixa</div>
             </div>
             <div>
               <label className="text-[12px] block mb-1.5" style={{ color: "var(--text-secondary)" }}>Aporte mensal</label>
-              <input data-testid="fire-aporte" type="number" className="input-premium font-mono-num"
+              <MoneyInput
+                data-testid="fire-aporte"
                 value={fire.monthlyInvestment}
-                onChange={(e) => updateFire({ monthlyInvestment: parseNum(e.target.value) })} />
+                onValueChange={(monthlyInvestment) => updateFire({ monthlyInvestment })}
+              />
               <div className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>Quanto você aporta em investimentos por mês</div>
             </div>
             <div className="md:col-span-2">
               <label className="text-[12px] block mb-1.5" style={{ color: "var(--text-secondary)" }}>Retorno real esperado (% ao ano)</label>
-              <input data-testid="fire-return" type="number" step="0.1" className="input-premium font-mono-num"
+              <PctInput
+                data-testid="fire-return"
                 value={fire.annualReturn}
-                onChange={(e) => updateFire({ annualReturn: parseNum(e.target.value) })} />
+                onValueChange={(annualReturn) => updateFire({ annualReturn })}
+              />
               <div className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>Retorno acima da inflação. Conservador: 5-6%. Otimista: 9-10%.</div>
             </div>
           </div>
@@ -228,13 +235,11 @@ export default function Goals() {
                 <label className="text-[12px] block mb-1.5" style={{ color: "var(--text-secondary)" }}>
                   Aporte extra hipotético (R$/mês)
                 </label>
-                <input
+                <MoneyInput
                   data-testid="fire-whatif-extra"
-                  type="number"
-                  min={0}
-                  className="input-premium font-mono-num font-display text-[20px]"
+                  className="font-display text-[20px]"
                   value={whatIfExtra}
-                  onChange={(e) => setWhatIfExtra(parseNum(e.target.value))}
+                  onValueChange={setWhatIfExtra}
                 />
                 <div className="flex flex-wrap gap-2 mt-3">
                   {EXTRA_PRESETS.map((value) => (
@@ -341,13 +346,19 @@ export default function Goals() {
                     onChange={(e) => updateGoal(g.id, { name: e.target.value })} />
                   <div className="lg:col-span-2">
                     <div className="text-[10px] uppercase tracking-[0.14em] mb-1" style={{ color: "var(--text-muted)" }}>Meta (alvo)</div>
-                    <input data-testid={`goal-target-${g.id}`} type="number" className="input-premium font-mono-num" value={g.target}
-                      onChange={(e) => updateGoal(g.id, { target: parseNum(e.target.value) })} />
+                    <MoneyInput
+                      data-testid={`goal-target-${g.id}`}
+                      value={g.target}
+                      onValueChange={(target) => updateGoal(g.id, { target })}
+                    />
                   </div>
                   <div className="lg:col-span-2">
                     <div className="text-[10px] uppercase tracking-[0.14em] mb-1" style={{ color: "var(--text-muted)" }}>Atual</div>
-                    <input data-testid={`goal-current-${g.id}`} type="number" className="input-premium font-mono-num" value={g.current}
-                      onChange={(e) => updateGoal(g.id, { current: parseNum(e.target.value) })} />
+                    <MoneyInput
+                      data-testid={`goal-current-${g.id}`}
+                      value={g.current}
+                      onValueChange={(current) => updateGoal(g.id, { current })}
+                    />
                   </div>
                   <div className="lg:col-span-3">
                     <div className="text-[10px] uppercase tracking-[0.14em] mb-1" style={{ color: "var(--text-muted)" }}>Prazo</div>
@@ -402,10 +413,22 @@ export default function Goals() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
               <input data-testid="goal-new-name" className="input-premium lg:col-span-4" placeholder="Nome da meta (ex: Casa própria)"
                 value={newGoal.name} onChange={(e) => setNewGoal({ ...newGoal, name: e.target.value })} />
-              <input data-testid="goal-new-target" type="number" className="input-premium font-mono-num lg:col-span-2" placeholder="Alvo"
-                value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: e.target.value })} />
-              <input data-testid="goal-new-current" type="number" className="input-premium font-mono-num lg:col-span-2" placeholder="Atual"
-                value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: e.target.value })} />
+              <div className="lg:col-span-2">
+                <MoneyInput
+                  data-testid="goal-new-target"
+                  placeholder="Alvo"
+                  value={newGoal.target}
+                  onChange={(target) => setNewGoal({ ...newGoal, target })}
+                />
+              </div>
+              <div className="lg:col-span-2">
+                <MoneyInput
+                  data-testid="goal-new-current"
+                  placeholder="Atual"
+                  value={newGoal.current}
+                  onChange={(current) => setNewGoal({ ...newGoal, current })}
+                />
+              </div>
               <DatePicker
                 data-testid="goal-new-deadline"
                 className="lg:col-span-3"

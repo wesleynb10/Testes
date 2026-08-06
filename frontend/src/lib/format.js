@@ -43,11 +43,78 @@ export const parseNum = (v) => {
         ? clean.replace(/\./g, "").replace(",", ".")
         : clean.replace(/,/g, "");
   } else if (comma >= 0) {
+    // pt-BR: vírgula decimal, pontos de milhar
     clean = clean.replace(/\./g, "").replace(",", ".");
-  } else if ((clean.match(/\./g) || []).length > 1) {
-    const last = clean.lastIndexOf(".");
-    clean = `${clean.slice(0, last).replace(/\./g, "")}${clean.slice(last)}`;
+  } else if (dot >= 0) {
+    const dots = (clean.match(/\./g) || []).length;
+    const afterLast = clean.slice(clean.lastIndexOf(".") + 1);
+    // "10.000" / "1.000.000" → milhar; "10.5" / "10.50" → decimal
+    if (dots > 1 || /^\d{3}$/.test(afterLast)) {
+      clean = clean.replace(/\./g, "");
+    }
   }
   const n = parseFloat(clean);
   return isNaN(n) ? 0 : n;
+};
+
+/**
+ * Máscara de dinheiro pt-BR para inputs (sem "R$").
+ * 10000 → "10.000" | "10.000,5" | preserva vírgula ao digitar ("10.000,").
+ */
+export const formatMoneyInput = (raw) => {
+  if (raw === "" || raw === null || raw === undefined) return "";
+  if (typeof raw === "number") {
+    if (!Number.isFinite(raw)) return "";
+    return new Intl.NumberFormat("pt-BR", {
+      minimumFractionDigits: Number.isInteger(raw) ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(raw);
+  }
+  const s = String(raw).trim();
+  if (!s) return "";
+  const cleaned = s.replace(/[^\d,]/g, "");
+  if (!cleaned) return "";
+  const hasComma = cleaned.includes(",");
+  const [intRaw, ...decParts] = cleaned.split(",");
+  const intDigits = (intRaw || "").replace(/\D/g, "");
+  const intFormatted = intDigits
+    ? Number(intDigits).toLocaleString("pt-BR")
+    : hasComma
+      ? "0"
+      : "";
+  if (!hasComma) return intFormatted;
+  const dec = decParts.join("").replace(/\D/g, "").slice(0, 2);
+  if (cleaned.endsWith(",") && dec === "") return `${intFormatted},`;
+  return `${intFormatted},${dec}`;
+};
+
+/** Máscara de percentual pt-BR (até 3 casas). 2.5 → "2,5". */
+export const formatPctInput = (raw) => {
+  if (raw === "" || raw === null || raw === undefined) return "";
+  if (typeof raw === "number") {
+    if (!Number.isFinite(raw)) return "";
+    return String(raw).replace(".", ",");
+  }
+  const s = String(raw).trim().replace(/[^\d,.]/g, "").replace(".", ",");
+  if (!s) return "";
+  const hasComma = s.includes(",");
+  const [intRaw, ...decParts] = s.split(",");
+  const intDigits = (intRaw || "").replace(/\D/g, "");
+  const intPart = intDigits ? stripLeadingZeros(intDigits) || "0" : hasComma ? "0" : "";
+  if (!hasComma) return intPart;
+  const dec = decParts.join("").replace(/\D/g, "").slice(0, 3);
+  if (s.endsWith(",") && dec === "") return `${intPart},`;
+  return `${intPart},${dec}`;
+};
+
+/** Inteiro positivo para prazos / contagens. */
+export const formatIntInput = (raw) => {
+  if (raw === "" || raw === null || raw === undefined) return "";
+  if (typeof raw === "number") {
+    if (!Number.isFinite(raw)) return "";
+    return String(Math.max(0, Math.round(raw)));
+  }
+  const digits = String(raw).replace(/\D/g, "");
+  if (!digits) return "";
+  return stripLeadingZeros(digits) || "0";
 };

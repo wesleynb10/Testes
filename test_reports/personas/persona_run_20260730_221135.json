@@ -1,0 +1,1651 @@
+{
+  "generated_at": "2026-07-30T22:11:37.346471+00:00",
+  "mode": "asgi_testclient_mock",
+  "personas": 4,
+  "passed": 4,
+  "results": [
+    {
+      "persona": "ana_endividada",
+      "name": "Ana Souza",
+      "role": "Endividada — quitar dívidas",
+      "story": "Cartão e carnê pesando; quer sobra mensal e plano bola de neve.",
+      "email": "persona_ana_endividada_9eb9508e@finpremium.test",
+      "password": "PersonaDemo2026!",
+      "income": 4200,
+      "goal": "quitar_dividas",
+      "steps": [
+        {
+          "step": "1_lead_captura",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "1b_entitlement_pre_cadastro",
+          "ok": true,
+          "detail": "+1 consultas"
+        },
+        {
+          "step": "2_cadastro",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "3_sessao",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "4_estado_inicial",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "5_onboarding_plano",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Mercado Extra",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:iFood",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Conta de luz",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "7_lista_lancamentos",
+          "ok": true,
+          "detail": {
+            "count": 3,
+            "posted": 3
+          }
+        },
+        {
+          "step": "8_dashboard",
+          "ok": true,
+          "detail": {
+            "keys": [
+              "months"
+            ]
+          }
+        },
+        {
+          "step": "9_credit_price",
+          "ok": true,
+          "detail": {
+            "price": 39.9,
+            "currency": "brl",
+            "consent_version": "v1",
+            "apis": [
+              {
+                "id": "score",
+                "label": "Score de crédito (QUOD)",
+                "cost_brl": 1.98,
+                "required": true
+              },
+              {
+                "id": "scr",
+                "label": "SCR / BACEN",
+                "cost_brl": 4.9,
+                "required": false
+              },
+              {
+                "id": "pendencias",
+                "label": "Negativações (PEFIN/REFIN)",
+                "cost_brl": 2.38,
+                "required": false
+              },
+              {
+                "id": "divida_ativa",
+                "label": "Dívida ativa da União (PGFN)",
+                "cost_brl": 0.36,
+                "required": false
+              }
+            ],
+            "price_by_apis": {
+              "all": 39.92
+            },
+            "credit_reports_remaining": 1
+          }
+        },
+        {
+          "step": "10_credit_quote",
+          "ok": true,
+          "detail": {
+            "apis": [
+              "score",
+              "scr"
+            ],
+            "amount": 0.0,
+            "currency": "brl",
+            "payment": "included",
+            "credit_reports_remaining": 1,
+            "cost_provider_brl": 6.88
+          }
+        },
+        {
+          "step": "11_credit_checkout",
+          "ok": true,
+          "detail": {
+            "order_id": "3c27e27a-8afd-4ab9-bfd6-6d0c0734fd1d",
+            "payment": "included"
+          }
+        },
+        {
+          "step": "12_credit_report_ready",
+          "ok": true,
+          "detail": {
+            "order_id": "3c27e27a-8afd-4ab9-bfd6-6d0c0734fd1d",
+            "documento": "***.***.**7-25",
+            "tipo": "pf",
+            "status": "ready",
+            "payment_status": "paid",
+            "report_ready": true,
+            "report_id": "88021ca1-5c33-4d03-825f-81e627bb7425",
+            "price": 0.0,
+            "currency": "brl",
+            "error": null,
+            "created_at": "2026-07-30T22:11:35.895767+00:00",
+            "updated_at": "2026-07-30T22:11:35.898671+00:00"
+          }
+        },
+        {
+          "step": "13_credit_report_read",
+          "ok": true,
+          "detail": {
+            "score": 742,
+            "rating": "B"
+          }
+        },
+        {
+          "step": "14_credit_import_plano",
+          "ok": true,
+          "detail": {
+            "ok": true,
+            "imported": 2,
+            "state": {
+              "profile": {
+                "name": "Ana Souza",
+                "monthlyIncome": 4200.0,
+                "onboardingCompleted": true,
+                "primaryGoal": "quitar_dividas",
+                "firstWeekChecklist": {
+                  "income": true,
+                  "firstTx": true,
+                  "budget": true,
+                  "goalDebt": true,
+                  "whatsapp": false,
+                  "dismissed": false,
+                  "completedAt": ""
+                }
+              },
+              "budgetRule": {
+                "necessidades": 50.0,
+                "desejos": 30.0,
+                "investimentos": 20.0
+              },
+              "budget": {
+                "necessidades": [
+                  {
+                    "id": "n1",
+                    "name": "Aluguel",
+                    "planned": 1400.0,
+                    "actual": 0.0
+                  },
+                  {
+                    "id": "n2",
+                    "name": "Supermercado",
+                    "planned": 900.0,
+                    "actual": 187.4
+                  },
+                  {
+                    "id": "n3",
+                    "name": "Contas / Essenciais",
+                    "planned": 450.0,
+                    "actual": 210.0
+                  }
+                ],
+                "desejos": [
+                  {
+                    "id": "d1",
+                    "name": "Restaurantes",
+                    "planned": 250.0,
+                    "actual": 62.9
+                  }
+                ],
+                "investimentos": [
+                  {
+                    "id": "i1",
+                    "name": "Reserva de emergência",
+                    "planned": 100.0,
+                    "actual": 0.0
+                  }
+                ]
+              },
+              "debts": [
+                {
+                  "id": "dv7165f08b6329",
+                  "name": "Cartão de crédito",
+                  "balance": 4200.0,
+                  "rate": 0.0,
+                  "ratePeriod": "am",
+                  "minPayment": 0.0,
+                  "termMonths": 0,
+                  "source": "scr",
+                  "reportId": "88021ca1-5c33-4d03-825f-81e627bb7425",
+                  "scrCodigo": "0203",
+                  "vencido": 0.0,
+                  "importedAt": "2026-07-30T22:11:35.903628+00:00"
+                },
+                {
+                  "id": "dvf2cb77957fbf",
+                  "name": "Empréstimo pessoal",
+                  "balance": 14250.75,
+                  "rate": 0.0,
+                  "ratePeriod": "am",
+                  "minPayment": 0.0,
+                  "termMonths": 0,
+                  "source": "scr",
+                  "reportId": "88021ca1-5c33-4d03-825f-81e627bb7425",
+                  "scrCodigo": "0401",
+                  "vencido": 1250.0,
+                  "importedAt": "2026-07-30T22:11:35.903628+00:00"
+                }
+              ],
+              "goals": [
+                {
+                  "id": "g1",
+                  "name": "Livre das dívidas",
+                  "target": 18450.75,
+                  "current": 0.0,
+                  "deadline": "2027-06-30"
+                }
+              ],
+              "creditInsight": {
+                "reportId": "88021ca1-5c33-4d03-825f-81e627bb7425",
+                "orderId": "3c27e27a-8afd-4ab9-bfd6-6d0c0734fd1d",
+                "importedAt": "2026-07-30T22:11:35.903628+00:00",
+                "divida_atual": 18450.75,
+                "quantidade_instituicoes": 3,
+                "quantidade_operacoes": 2,
+                "faixa_risco": "Médio baixo",
+                "curva_vencimentos": [
+                  {
+                    "chave": "de_1_a_30",
+                    "label": "1–30 dias",
+                    "horizonte_dias": 30,
+                    "valor": 1800.0,
+                    "acumulado": 1800.0
+                  },
+                  {
+                    "chave": "de_31_a_60",
+                    "label": "31–60 dias",
+                    "horizonte_dias": 60,
+                    "valor": 1800.0,
+                    "acumulado": 3600.0
+                  },
+                  {
+                    "chave": "de_61_a_90",
+                    "label": "61–90 dias",
+                    "horizonte_dias": 90,
+                    "valor": 1800.0,
+                    "acumulado": 5400.0
+                  },
+                  {
+                    "chave": "de_91_a_180",
+                    "label": "91–180 dias",
+                    "horizonte_dias": 180,
+                    "valor": 3000.0,
+                    "acumulado": 8400.0
+                  },
+                  {
+                    "chave": "de_181_a_360",
+                    "label": "181–360 dias",
+                    "horizonte_dias": 360,
+                    "valor": 4800.0,
+                    "acumulado": 13200.0
+                  },
+                  {
+                    "chave": "acima_361",
+                    "label": "Acima de 361 dias",
+                    "horizonte_dias": 720,
+                    "valor": 4000.75,
+                    "acumulado": 17200.75
+                  }
+                ],
+                "legado_consolidado": false
+              },
+              "fire": {
+                "monthlyExpenses": 0.0,
+                "monthlyInvestment": 0.0,
+                "annualReturn": 6.0,
+                "safeWithdrawal": 4.0,
+                "currentInvested": 0.0
+              }
+            },
+            "creditInsight": {
+              "reportId": "88021ca1-5c33-4d03-825f-81e627bb7425",
+              "orderId": "3c27e27a-8afd-4ab9-bfd6-6d0c0734fd1d",
+              "importedAt": "2026-07-30T22:11:35.903628+00:00",
+              "divida_atual": 18450.75,
+              "quantidade_instituicoes": 3,
+              "quantidade_operacoes": 2,
+              "faixa_risco": "Médio baixo",
+              "curva_vencimentos": [
+                {
+                  "chave": "de_1_a_30",
+                  "label": "1–30 dias",
+                  "horizonte_dias": 30,
+                  "valor": 1800.0,
+                  "acumulado": 1800.0
+                },
+                {
+                  "chave": "de_31_a_60",
+                  "label": "31–60 dias",
+                  "horizonte_dias": 60,
+                  "valor": 1800.0,
+                  "acumulado": 3600.0
+                },
+                {
+                  "chave": "de_61_a_90",
+                  "label": "61–90 dias",
+                  "horizonte_dias": 90,
+                  "valor": 1800.0,
+                  "acumulado": 5400.0
+                },
+                {
+                  "chave": "de_91_a_180",
+                  "label": "91–180 dias",
+                  "horizonte_dias": 180,
+                  "valor": 3000.0,
+                  "acumulado": 8400.0
+                },
+                {
+                  "chave": "de_181_a_360",
+                  "label": "181–360 dias",
+                  "horizonte_dias": 360,
+                  "valor": 4800.0,
+                  "acumulado": 13200.0
+                },
+                {
+                  "chave": "acima_361",
+                  "label": "Acima de 361 dias",
+                  "horizonte_dias": 720,
+                  "valor": 4000.75,
+                  "acumulado": 17200.75
+                }
+              ],
+              "legado_consolidado": false
+            }
+          }
+        },
+        {
+          "step": "15_credit_orders",
+          "ok": true,
+          "detail": {
+            "n": "ok"
+          }
+        },
+        {
+          "step": "16_estado_final",
+          "ok": true,
+          "detail": {
+            "income": 4200.0,
+            "debts": 2,
+            "goals": 1,
+            "creditInsight": true
+          }
+        }
+      ],
+      "passed": true,
+      "dashboard_keys": [
+        "months"
+      ],
+      "final": {
+        "income": 4200.0,
+        "primaryGoal": "quitar_dividas",
+        "debts_count": 2,
+        "goals_count": 1,
+        "debts": [
+          {
+            "name": "Cartão de crédito",
+            "balance": 4200.0,
+            "source": "scr"
+          },
+          {
+            "name": "Empréstimo pessoal",
+            "balance": 14250.75,
+            "source": "scr"
+          }
+        ],
+        "goals": [
+          {
+            "name": "Livre das dívidas",
+            "target": 18450.75,
+            "current": 0.0
+          }
+        ],
+        "creditInsight": {
+          "reportId": "88021ca1-5c33-4d03-825f-81e627bb7425",
+          "orderId": "3c27e27a-8afd-4ab9-bfd6-6d0c0734fd1d",
+          "importedAt": "2026-07-30T22:11:35.903628+00:00",
+          "divida_atual": 18450.75,
+          "quantidade_instituicoes": 3,
+          "quantidade_operacoes": 2,
+          "faixa_risco": "Médio baixo",
+          "curva_vencimentos": [
+            {
+              "chave": "de_1_a_30",
+              "label": "1–30 dias",
+              "horizonte_dias": 30,
+              "valor": 1800.0,
+              "acumulado": 1800.0
+            },
+            {
+              "chave": "de_31_a_60",
+              "label": "31–60 dias",
+              "horizonte_dias": 60,
+              "valor": 1800.0,
+              "acumulado": 3600.0
+            },
+            {
+              "chave": "de_61_a_90",
+              "label": "61–90 dias",
+              "horizonte_dias": 90,
+              "valor": 1800.0,
+              "acumulado": 5400.0
+            },
+            {
+              "chave": "de_91_a_180",
+              "label": "91–180 dias",
+              "horizonte_dias": 180,
+              "valor": 3000.0,
+              "acumulado": 8400.0
+            },
+            {
+              "chave": "de_181_a_360",
+              "label": "181–360 dias",
+              "horizonte_dias": 360,
+              "valor": 4800.0,
+              "acumulado": 13200.0
+            },
+            {
+              "chave": "acima_361",
+              "label": "Acima de 361 dias",
+              "horizonte_dias": 720,
+              "valor": 4000.75,
+              "acumulado": 17200.75
+            }
+          ],
+          "legado_consolidado": false
+        }
+      },
+      "credit": {
+        "url": "http://127.0.0.1:3000/app/credito?order_id=3c27e27a-8afd-4ab9-bfd6-6d0c0734fd1d",
+        "session_id": null,
+        "order_id": "3c27e27a-8afd-4ab9-bfd6-6d0c0734fd1d",
+        "payment": "included",
+        "apis": [
+          "score",
+          "scr"
+        ],
+        "amount": 0.0,
+        "score": 742,
+        "rating": "B",
+        "import": {
+          "ok": true,
+          "imported": 2,
+          "state": {
+            "profile": {
+              "name": "Ana Souza",
+              "monthlyIncome": 4200.0,
+              "onboardingCompleted": true,
+              "primaryGoal": "quitar_dividas",
+              "firstWeekChecklist": {
+                "income": true,
+                "firstTx": true,
+                "budget": true,
+                "goalDebt": true,
+                "whatsapp": false,
+                "dismissed": false,
+                "completedAt": ""
+              }
+            },
+            "budgetRule": {
+              "necessidades": 50.0,
+              "desejos": 30.0,
+              "investimentos": 20.0
+            },
+            "budget": {
+              "necessidades": [
+                {
+                  "id": "n1",
+                  "name": "Aluguel",
+                  "planned": 1400.0,
+                  "actual": 0.0
+                },
+                {
+                  "id": "n2",
+                  "name": "Supermercado",
+                  "planned": 900.0,
+                  "actual": 187.4
+                },
+                {
+                  "id": "n3",
+                  "name": "Contas / Essenciais",
+                  "planned": 450.0,
+                  "actual": 210.0
+                }
+              ],
+              "desejos": [
+                {
+                  "id": "d1",
+                  "name": "Restaurantes",
+                  "planned": 250.0,
+                  "actual": 62.9
+                }
+              ],
+              "investimentos": [
+                {
+                  "id": "i1",
+                  "name": "Reserva de emergência",
+                  "planned": 100.0,
+                  "actual": 0.0
+                }
+              ]
+            },
+            "debts": [
+              {
+                "id": "dv7165f08b6329",
+                "name": "Cartão de crédito",
+                "balance": 4200.0,
+                "rate": 0.0,
+                "ratePeriod": "am",
+                "minPayment": 0.0,
+                "termMonths": 0,
+                "source": "scr",
+                "reportId": "88021ca1-5c33-4d03-825f-81e627bb7425",
+                "scrCodigo": "0203",
+                "vencido": 0.0,
+                "importedAt": "2026-07-30T22:11:35.903628+00:00"
+              },
+              {
+                "id": "dvf2cb77957fbf",
+                "name": "Empréstimo pessoal",
+                "balance": 14250.75,
+                "rate": 0.0,
+                "ratePeriod": "am",
+                "minPayment": 0.0,
+                "termMonths": 0,
+                "source": "scr",
+                "reportId": "88021ca1-5c33-4d03-825f-81e627bb7425",
+                "scrCodigo": "0401",
+                "vencido": 1250.0,
+                "importedAt": "2026-07-30T22:11:35.903628+00:00"
+              }
+            ],
+            "goals": [
+              {
+                "id": "g1",
+                "name": "Livre das dívidas",
+                "target": 18450.75,
+                "current": 0.0,
+                "deadline": "2027-06-30"
+              }
+            ],
+            "creditInsight": {
+              "reportId": "88021ca1-5c33-4d03-825f-81e627bb7425",
+              "orderId": "3c27e27a-8afd-4ab9-bfd6-6d0c0734fd1d",
+              "importedAt": "2026-07-30T22:11:35.903628+00:00",
+              "divida_atual": 18450.75,
+              "quantidade_instituicoes": 3,
+              "quantidade_operacoes": 2,
+              "faixa_risco": "Médio baixo",
+              "curva_vencimentos": [
+                {
+                  "chave": "de_1_a_30",
+                  "label": "1–30 dias",
+                  "horizonte_dias": 30,
+                  "valor": 1800.0,
+                  "acumulado": 1800.0
+                },
+                {
+                  "chave": "de_31_a_60",
+                  "label": "31–60 dias",
+                  "horizonte_dias": 60,
+                  "valor": 1800.0,
+                  "acumulado": 3600.0
+                },
+                {
+                  "chave": "de_61_a_90",
+                  "label": "61–90 dias",
+                  "horizonte_dias": 90,
+                  "valor": 1800.0,
+                  "acumulado": 5400.0
+                },
+                {
+                  "chave": "de_91_a_180",
+                  "label": "91–180 dias",
+                  "horizonte_dias": 180,
+                  "valor": 3000.0,
+                  "acumulado": 8400.0
+                },
+                {
+                  "chave": "de_181_a_360",
+                  "label": "181–360 dias",
+                  "horizonte_dias": 360,
+                  "valor": 4800.0,
+                  "acumulado": 13200.0
+                },
+                {
+                  "chave": "acima_361",
+                  "label": "Acima de 361 dias",
+                  "horizonte_dias": 720,
+                  "valor": 4000.75,
+                  "acumulado": 17200.75
+                }
+              ],
+              "legado_consolidado": false
+            },
+            "fire": {
+              "monthlyExpenses": 0.0,
+              "monthlyInvestment": 0.0,
+              "annualReturn": 6.0,
+              "safeWithdrawal": 4.0,
+              "currentInvested": 0.0
+            }
+          },
+          "creditInsight": {
+            "reportId": "88021ca1-5c33-4d03-825f-81e627bb7425",
+            "orderId": "3c27e27a-8afd-4ab9-bfd6-6d0c0734fd1d",
+            "importedAt": "2026-07-30T22:11:35.903628+00:00",
+            "divida_atual": 18450.75,
+            "quantidade_instituicoes": 3,
+            "quantidade_operacoes": 2,
+            "faixa_risco": "Médio baixo",
+            "curva_vencimentos": [
+              {
+                "chave": "de_1_a_30",
+                "label": "1–30 dias",
+                "horizonte_dias": 30,
+                "valor": 1800.0,
+                "acumulado": 1800.0
+              },
+              {
+                "chave": "de_31_a_60",
+                "label": "31–60 dias",
+                "horizonte_dias": 60,
+                "valor": 1800.0,
+                "acumulado": 3600.0
+              },
+              {
+                "chave": "de_61_a_90",
+                "label": "61–90 dias",
+                "horizonte_dias": 90,
+                "valor": 1800.0,
+                "acumulado": 5400.0
+              },
+              {
+                "chave": "de_91_a_180",
+                "label": "91–180 dias",
+                "horizonte_dias": 180,
+                "valor": 3000.0,
+                "acumulado": 8400.0
+              },
+              {
+                "chave": "de_181_a_360",
+                "label": "181–360 dias",
+                "horizonte_dias": 360,
+                "valor": 4800.0,
+                "acumulado": 13200.0
+              },
+              {
+                "chave": "acima_361",
+                "label": "Acima de 361 dias",
+                "horizonte_dias": 720,
+                "valor": 4000.75,
+                "acumulado": 17200.75
+              }
+            ],
+            "legado_consolidado": false
+          }
+        }
+      },
+      "tx_count": 3
+    },
+    {
+      "persona": "bruno_investidor",
+      "name": "Bruno Lima",
+      "role": "Investidor iniciante — reserva + FIRE",
+      "story": "Renda boa, pouca dívida; quer reserva e Número da Liberdade.",
+      "email": "persona_bruno_investidor_db3b8b38@finpremium.test",
+      "password": "PersonaDemo2026!",
+      "income": 12500,
+      "goal": "liberdade_financeira",
+      "steps": [
+        {
+          "step": "1_lead_captura",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "2_cadastro",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "3_sessao",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "4_estado_inicial",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "5_onboarding_plano",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Aporte CDB",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Netflix",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Supermercado",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "7_lista_lancamentos",
+          "ok": true,
+          "detail": {
+            "count": 3,
+            "posted": 3
+          }
+        },
+        {
+          "step": "8_dashboard",
+          "ok": true,
+          "detail": {
+            "keys": [
+              "months"
+            ]
+          }
+        },
+        {
+          "step": "16_estado_final",
+          "ok": true,
+          "detail": {
+            "income": 12500.0,
+            "debts": 1,
+            "goals": 2,
+            "creditInsight": false
+          }
+        }
+      ],
+      "passed": true,
+      "dashboard_keys": [
+        "months"
+      ],
+      "final": {
+        "income": 12500.0,
+        "primaryGoal": "liberdade_financeira",
+        "debts_count": 1,
+        "goals_count": 2,
+        "debts": [
+          {
+            "name": "Financiamento carro",
+            "balance": 28000.0,
+            "source": "manual"
+          }
+        ],
+        "goals": [
+          {
+            "name": "Reserva de emergência",
+            "target": 37500.0,
+            "current": 12000.0
+          },
+          {
+            "name": "Número da Liberdade",
+            "target": 1500000.0,
+            "current": 85000.0
+          }
+        ],
+        "creditInsight": {}
+      },
+      "credit": {},
+      "tx_count": 3
+    },
+    {
+      "persona": "carla_freelancer",
+      "name": "Carla Mendes",
+      "role": "Freelancer — organizar fluxo de caixa",
+      "story": "Renda variável; precisa categorizar gastos e ver 50/30/20.",
+      "email": "persona_carla_freelancer_b0fb8d23@finpremium.test",
+      "password": "PersonaDemo2026!",
+      "income": 6800,
+      "goal": "organizar_gastos",
+      "steps": [
+        {
+          "step": "1_lead_captura",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "2_cadastro",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "3_sessao",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "4_estado_inicial",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "5_onboarding_plano",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Uber",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Figma",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Farmácia",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Material escritório",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Reserva mensal",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "7_lista_lancamentos",
+          "ok": true,
+          "detail": {
+            "count": 5,
+            "posted": 5
+          }
+        },
+        {
+          "step": "8_dashboard",
+          "ok": true,
+          "detail": {
+            "keys": [
+              "months"
+            ]
+          }
+        },
+        {
+          "step": "16_estado_final",
+          "ok": true,
+          "detail": {
+            "income": 6800.0,
+            "debts": 0,
+            "goals": 1,
+            "creditInsight": false
+          }
+        }
+      ],
+      "passed": true,
+      "dashboard_keys": [
+        "months"
+      ],
+      "final": {
+        "income": 6800.0,
+        "primaryGoal": "organizar_gastos",
+        "debts_count": 0,
+        "goals_count": 1,
+        "debts": [],
+        "goals": [
+          {
+            "name": "Colchão 3 meses",
+            "target": 20400.0,
+            "current": 4100.0
+          }
+        ],
+        "creditInsight": {}
+      },
+      "credit": {},
+      "tx_count": 5
+    },
+    {
+      "persona": "diego_credito",
+      "name": "Diego Rocha",
+      "role": "Premium — Análise de Crédito + import SCR",
+      "story": "Quer score/SCR, importar modalidades e alinhar plano vs BACEN.",
+      "email": "persona_diego_credito_9f842307@finpremium.test",
+      "password": "PersonaDemo2026!",
+      "income": 9800,
+      "goal": "quitar_dividas",
+      "steps": [
+        {
+          "step": "1_lead_captura",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "1b_entitlement_pre_cadastro",
+          "ok": true,
+          "detail": "+2 consultas"
+        },
+        {
+          "step": "2_cadastro",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "3_sessao",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "4_estado_inicial",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "5_onboarding_plano",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Parcela cartão",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Almoço",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "6_lancamento:Aporte mensal",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "step": "7_lista_lancamentos",
+          "ok": true,
+          "detail": {
+            "count": 3,
+            "posted": 3
+          }
+        },
+        {
+          "step": "8_dashboard",
+          "ok": true,
+          "detail": {
+            "keys": [
+              "months"
+            ]
+          }
+        },
+        {
+          "step": "9_credit_price",
+          "ok": true,
+          "detail": {
+            "price": 39.9,
+            "currency": "brl",
+            "consent_version": "v1",
+            "apis": [
+              {
+                "id": "score",
+                "label": "Score de crédito (QUOD)",
+                "cost_brl": 1.98,
+                "required": true
+              },
+              {
+                "id": "scr",
+                "label": "SCR / BACEN",
+                "cost_brl": 4.9,
+                "required": false
+              },
+              {
+                "id": "pendencias",
+                "label": "Negativações (PEFIN/REFIN)",
+                "cost_brl": 2.38,
+                "required": false
+              },
+              {
+                "id": "divida_ativa",
+                "label": "Dívida ativa da União (PGFN)",
+                "cost_brl": 0.36,
+                "required": false
+              }
+            ],
+            "price_by_apis": {
+              "all": 39.92
+            },
+            "credit_reports_remaining": 2
+          }
+        },
+        {
+          "step": "10_credit_quote",
+          "ok": true,
+          "detail": {
+            "apis": [
+              "score",
+              "scr",
+              "pendencias"
+            ],
+            "amount": 0.0,
+            "currency": "brl",
+            "payment": "included",
+            "credit_reports_remaining": 2,
+            "cost_provider_brl": 9.26
+          }
+        },
+        {
+          "step": "11_credit_checkout",
+          "ok": true,
+          "detail": {
+            "order_id": "9f670f28-da09-47c4-add5-c6f0257b02de",
+            "payment": "included"
+          }
+        },
+        {
+          "step": "12_credit_report_ready",
+          "ok": true,
+          "detail": {
+            "order_id": "9f670f28-da09-47c4-add5-c6f0257b02de",
+            "documento": "***.***.**7-35",
+            "tipo": "pf",
+            "status": "ready",
+            "payment_status": "paid",
+            "report_ready": true,
+            "report_id": "b346a429-1a66-4dc2-86c2-fea791b79f48",
+            "price": 0.0,
+            "currency": "brl",
+            "error": null,
+            "created_at": "2026-07-30T22:11:37.341450+00:00",
+            "updated_at": "2026-07-30T22:11:37.341999+00:00"
+          }
+        },
+        {
+          "step": "13_credit_report_read",
+          "ok": true,
+          "detail": {
+            "score": 742,
+            "rating": "B"
+          }
+        },
+        {
+          "step": "14_credit_import_plano",
+          "ok": true,
+          "detail": {
+            "ok": true,
+            "imported": 2,
+            "state": {
+              "profile": {
+                "name": "Diego Rocha",
+                "monthlyIncome": 9800.0,
+                "onboardingCompleted": true,
+                "primaryGoal": "quitar_dividas",
+                "firstWeekChecklist": {
+                  "income": true,
+                  "firstTx": true,
+                  "budget": true,
+                  "goalDebt": true,
+                  "whatsapp": false,
+                  "dismissed": false,
+                  "completedAt": ""
+                }
+              },
+              "budgetRule": {
+                "necessidades": 50.0,
+                "desejos": 30.0,
+                "investimentos": 20.0
+              },
+              "budget": {
+                "necessidades": [
+                  {
+                    "id": "n1",
+                    "name": "Aluguel",
+                    "planned": 2200.0,
+                    "actual": 0.0
+                  },
+                  {
+                    "id": "na00d3af49ef5",
+                    "name": "Dívidas",
+                    "planned": 0.0,
+                    "actual": 250.0
+                  }
+                ],
+                "desejos": [
+                  {
+                    "id": "d1",
+                    "name": "Restaurantes",
+                    "planned": 400.0,
+                    "actual": 48.0
+                  }
+                ],
+                "investimentos": [
+                  {
+                    "id": "i1",
+                    "name": "Aplicação",
+                    "planned": 1500.0,
+                    "actual": 1500.0
+                  }
+                ]
+              },
+              "debts": [
+                {
+                  "id": "dv9c78e0a475c4",
+                  "name": "Cartão de crédito",
+                  "balance": 4200.0,
+                  "rate": 0.0,
+                  "ratePeriod": "am",
+                  "minPayment": 0.0,
+                  "termMonths": 0,
+                  "source": "scr",
+                  "reportId": "b346a429-1a66-4dc2-86c2-fea791b79f48",
+                  "scrCodigo": "0203",
+                  "vencido": 0.0,
+                  "importedAt": "2026-07-30T22:11:37.343643+00:00"
+                },
+                {
+                  "id": "dv7badda6d908b",
+                  "name": "Empréstimo pessoal",
+                  "balance": 14250.75,
+                  "rate": 0.0,
+                  "ratePeriod": "am",
+                  "minPayment": 0.0,
+                  "termMonths": 0,
+                  "source": "scr",
+                  "reportId": "b346a429-1a66-4dc2-86c2-fea791b79f48",
+                  "scrCodigo": "0401",
+                  "vencido": 1250.0,
+                  "importedAt": "2026-07-30T22:11:37.343643+00:00"
+                }
+              ],
+              "goals": [
+                {
+                  "id": "g1",
+                  "name": "Quitar cartão",
+                  "target": 3100.0,
+                  "current": 400.0,
+                  "deadline": "2026-12-31"
+                }
+              ],
+              "creditInsight": {
+                "reportId": "b346a429-1a66-4dc2-86c2-fea791b79f48",
+                "orderId": "9f670f28-da09-47c4-add5-c6f0257b02de",
+                "importedAt": "2026-07-30T22:11:37.343643+00:00",
+                "divida_atual": 18450.75,
+                "quantidade_instituicoes": 3,
+                "quantidade_operacoes": 2,
+                "faixa_risco": "Médio baixo",
+                "curva_vencimentos": [
+                  {
+                    "chave": "de_1_a_30",
+                    "label": "1–30 dias",
+                    "horizonte_dias": 30,
+                    "valor": 1800.0,
+                    "acumulado": 1800.0
+                  },
+                  {
+                    "chave": "de_31_a_60",
+                    "label": "31–60 dias",
+                    "horizonte_dias": 60,
+                    "valor": 1800.0,
+                    "acumulado": 3600.0
+                  },
+                  {
+                    "chave": "de_61_a_90",
+                    "label": "61–90 dias",
+                    "horizonte_dias": 90,
+                    "valor": 1800.0,
+                    "acumulado": 5400.0
+                  },
+                  {
+                    "chave": "de_91_a_180",
+                    "label": "91–180 dias",
+                    "horizonte_dias": 180,
+                    "valor": 3000.0,
+                    "acumulado": 8400.0
+                  },
+                  {
+                    "chave": "de_181_a_360",
+                    "label": "181–360 dias",
+                    "horizonte_dias": 360,
+                    "valor": 4800.0,
+                    "acumulado": 13200.0
+                  },
+                  {
+                    "chave": "acima_361",
+                    "label": "Acima de 361 dias",
+                    "horizonte_dias": 720,
+                    "valor": 4000.75,
+                    "acumulado": 17200.75
+                  }
+                ],
+                "legado_consolidado": false
+              },
+              "fire": {
+                "monthlyExpenses": 0.0,
+                "monthlyInvestment": 0.0,
+                "annualReturn": 6.0,
+                "safeWithdrawal": 4.0,
+                "currentInvested": 0.0
+              }
+            },
+            "creditInsight": {
+              "reportId": "b346a429-1a66-4dc2-86c2-fea791b79f48",
+              "orderId": "9f670f28-da09-47c4-add5-c6f0257b02de",
+              "importedAt": "2026-07-30T22:11:37.343643+00:00",
+              "divida_atual": 18450.75,
+              "quantidade_instituicoes": 3,
+              "quantidade_operacoes": 2,
+              "faixa_risco": "Médio baixo",
+              "curva_vencimentos": [
+                {
+                  "chave": "de_1_a_30",
+                  "label": "1–30 dias",
+                  "horizonte_dias": 30,
+                  "valor": 1800.0,
+                  "acumulado": 1800.0
+                },
+                {
+                  "chave": "de_31_a_60",
+                  "label": "31–60 dias",
+                  "horizonte_dias": 60,
+                  "valor": 1800.0,
+                  "acumulado": 3600.0
+                },
+                {
+                  "chave": "de_61_a_90",
+                  "label": "61–90 dias",
+                  "horizonte_dias": 90,
+                  "valor": 1800.0,
+                  "acumulado": 5400.0
+                },
+                {
+                  "chave": "de_91_a_180",
+                  "label": "91–180 dias",
+                  "horizonte_dias": 180,
+                  "valor": 3000.0,
+                  "acumulado": 8400.0
+                },
+                {
+                  "chave": "de_181_a_360",
+                  "label": "181–360 dias",
+                  "horizonte_dias": 360,
+                  "valor": 4800.0,
+                  "acumulado": 13200.0
+                },
+                {
+                  "chave": "acima_361",
+                  "label": "Acima de 361 dias",
+                  "horizonte_dias": 720,
+                  "valor": 4000.75,
+                  "acumulado": 17200.75
+                }
+              ],
+              "legado_consolidado": false
+            }
+          }
+        },
+        {
+          "step": "15_credit_orders",
+          "ok": true,
+          "detail": {
+            "n": "ok"
+          }
+        },
+        {
+          "step": "16_estado_final",
+          "ok": true,
+          "detail": {
+            "income": 9800.0,
+            "debts": 2,
+            "goals": 1,
+            "creditInsight": true
+          }
+        }
+      ],
+      "passed": true,
+      "dashboard_keys": [
+        "months"
+      ],
+      "final": {
+        "income": 9800.0,
+        "primaryGoal": "quitar_dividas",
+        "debts_count": 2,
+        "goals_count": 1,
+        "debts": [
+          {
+            "name": "Cartão de crédito",
+            "balance": 4200.0,
+            "source": "scr"
+          },
+          {
+            "name": "Empréstimo pessoal",
+            "balance": 14250.75,
+            "source": "scr"
+          }
+        ],
+        "goals": [
+          {
+            "name": "Quitar cartão",
+            "target": 3100.0,
+            "current": 400.0
+          }
+        ],
+        "creditInsight": {
+          "reportId": "b346a429-1a66-4dc2-86c2-fea791b79f48",
+          "orderId": "9f670f28-da09-47c4-add5-c6f0257b02de",
+          "importedAt": "2026-07-30T22:11:37.343643+00:00",
+          "divida_atual": 18450.75,
+          "quantidade_instituicoes": 3,
+          "quantidade_operacoes": 2,
+          "faixa_risco": "Médio baixo",
+          "curva_vencimentos": [
+            {
+              "chave": "de_1_a_30",
+              "label": "1–30 dias",
+              "horizonte_dias": 30,
+              "valor": 1800.0,
+              "acumulado": 1800.0
+            },
+            {
+              "chave": "de_31_a_60",
+              "label": "31–60 dias",
+              "horizonte_dias": 60,
+              "valor": 1800.0,
+              "acumulado": 3600.0
+            },
+            {
+              "chave": "de_61_a_90",
+              "label": "61–90 dias",
+              "horizonte_dias": 90,
+              "valor": 1800.0,
+              "acumulado": 5400.0
+            },
+            {
+              "chave": "de_91_a_180",
+              "label": "91–180 dias",
+              "horizonte_dias": 180,
+              "valor": 3000.0,
+              "acumulado": 8400.0
+            },
+            {
+              "chave": "de_181_a_360",
+              "label": "181–360 dias",
+              "horizonte_dias": 360,
+              "valor": 4800.0,
+              "acumulado": 13200.0
+            },
+            {
+              "chave": "acima_361",
+              "label": "Acima de 361 dias",
+              "horizonte_dias": 720,
+              "valor": 4000.75,
+              "acumulado": 17200.75
+            }
+          ],
+          "legado_consolidado": false
+        }
+      },
+      "credit": {
+        "url": "http://127.0.0.1:3000/app/credito?order_id=9f670f28-da09-47c4-add5-c6f0257b02de",
+        "session_id": null,
+        "order_id": "9f670f28-da09-47c4-add5-c6f0257b02de",
+        "payment": "included",
+        "apis": [
+          "score",
+          "scr",
+          "pendencias"
+        ],
+        "amount": 0.0,
+        "score": 742,
+        "rating": "B",
+        "import": {
+          "ok": true,
+          "imported": 2,
+          "state": {
+            "profile": {
+              "name": "Diego Rocha",
+              "monthlyIncome": 9800.0,
+              "onboardingCompleted": true,
+              "primaryGoal": "quitar_dividas",
+              "firstWeekChecklist": {
+                "income": true,
+                "firstTx": true,
+                "budget": true,
+                "goalDebt": true,
+                "whatsapp": false,
+                "dismissed": false,
+                "completedAt": ""
+              }
+            },
+            "budgetRule": {
+              "necessidades": 50.0,
+              "desejos": 30.0,
+              "investimentos": 20.0
+            },
+            "budget": {
+              "necessidades": [
+                {
+                  "id": "n1",
+                  "name": "Aluguel",
+                  "planned": 2200.0,
+                  "actual": 0.0
+                },
+                {
+                  "id": "na00d3af49ef5",
+                  "name": "Dívidas",
+                  "planned": 0.0,
+                  "actual": 250.0
+                }
+              ],
+              "desejos": [
+                {
+                  "id": "d1",
+                  "name": "Restaurantes",
+                  "planned": 400.0,
+                  "actual": 48.0
+                }
+              ],
+              "investimentos": [
+                {
+                  "id": "i1",
+                  "name": "Aplicação",
+                  "planned": 1500.0,
+                  "actual": 1500.0
+                }
+              ]
+            },
+            "debts": [
+              {
+                "id": "dv9c78e0a475c4",
+                "name": "Cartão de crédito",
+                "balance": 4200.0,
+                "rate": 0.0,
+                "ratePeriod": "am",
+                "minPayment": 0.0,
+                "termMonths": 0,
+                "source": "scr",
+                "reportId": "b346a429-1a66-4dc2-86c2-fea791b79f48",
+                "scrCodigo": "0203",
+                "vencido": 0.0,
+                "importedAt": "2026-07-30T22:11:37.343643+00:00"
+              },
+              {
+                "id": "dv7badda6d908b",
+                "name": "Empréstimo pessoal",
+                "balance": 14250.75,
+                "rate": 0.0,
+                "ratePeriod": "am",
+                "minPayment": 0.0,
+                "termMonths": 0,
+                "source": "scr",
+                "reportId": "b346a429-1a66-4dc2-86c2-fea791b79f48",
+                "scrCodigo": "0401",
+                "vencido": 1250.0,
+                "importedAt": "2026-07-30T22:11:37.343643+00:00"
+              }
+            ],
+            "goals": [
+              {
+                "id": "g1",
+                "name": "Quitar cartão",
+                "target": 3100.0,
+                "current": 400.0,
+                "deadline": "2026-12-31"
+              }
+            ],
+            "creditInsight": {
+              "reportId": "b346a429-1a66-4dc2-86c2-fea791b79f48",
+              "orderId": "9f670f28-da09-47c4-add5-c6f0257b02de",
+              "importedAt": "2026-07-30T22:11:37.343643+00:00",
+              "divida_atual": 18450.75,
+              "quantidade_instituicoes": 3,
+              "quantidade_operacoes": 2,
+              "faixa_risco": "Médio baixo",
+              "curva_vencimentos": [
+                {
+                  "chave": "de_1_a_30",
+                  "label": "1–30 dias",
+                  "horizonte_dias": 30,
+                  "valor": 1800.0,
+                  "acumulado": 1800.0
+                },
+                {
+                  "chave": "de_31_a_60",
+                  "label": "31–60 dias",
+                  "horizonte_dias": 60,
+                  "valor": 1800.0,
+                  "acumulado": 3600.0
+                },
+                {
+                  "chave": "de_61_a_90",
+                  "label": "61–90 dias",
+                  "horizonte_dias": 90,
+                  "valor": 1800.0,
+                  "acumulado": 5400.0
+                },
+                {
+                  "chave": "de_91_a_180",
+                  "label": "91–180 dias",
+                  "horizonte_dias": 180,
+                  "valor": 3000.0,
+                  "acumulado": 8400.0
+                },
+                {
+                  "chave": "de_181_a_360",
+                  "label": "181–360 dias",
+                  "horizonte_dias": 360,
+                  "valor": 4800.0,
+                  "acumulado": 13200.0
+                },
+                {
+                  "chave": "acima_361",
+                  "label": "Acima de 361 dias",
+                  "horizonte_dias": 720,
+                  "valor": 4000.75,
+                  "acumulado": 17200.75
+                }
+              ],
+              "legado_consolidado": false
+            },
+            "fire": {
+              "monthlyExpenses": 0.0,
+              "monthlyInvestment": 0.0,
+              "annualReturn": 6.0,
+              "safeWithdrawal": 4.0,
+              "currentInvested": 0.0
+            }
+          },
+          "creditInsight": {
+            "reportId": "b346a429-1a66-4dc2-86c2-fea791b79f48",
+            "orderId": "9f670f28-da09-47c4-add5-c6f0257b02de",
+            "importedAt": "2026-07-30T22:11:37.343643+00:00",
+            "divida_atual": 18450.75,
+            "quantidade_instituicoes": 3,
+            "quantidade_operacoes": 2,
+            "faixa_risco": "Médio baixo",
+            "curva_vencimentos": [
+              {
+                "chave": "de_1_a_30",
+                "label": "1–30 dias",
+                "horizonte_dias": 30,
+                "valor": 1800.0,
+                "acumulado": 1800.0
+              },
+              {
+                "chave": "de_31_a_60",
+                "label": "31–60 dias",
+                "horizonte_dias": 60,
+                "valor": 1800.0,
+                "acumulado": 3600.0
+              },
+              {
+                "chave": "de_61_a_90",
+                "label": "61–90 dias",
+                "horizonte_dias": 90,
+                "valor": 1800.0,
+                "acumulado": 5400.0
+              },
+              {
+                "chave": "de_91_a_180",
+                "label": "91–180 dias",
+                "horizonte_dias": 180,
+                "valor": 3000.0,
+                "acumulado": 8400.0
+              },
+              {
+                "chave": "de_181_a_360",
+                "label": "181–360 dias",
+                "horizonte_dias": 360,
+                "valor": 4800.0,
+                "acumulado": 13200.0
+              },
+              {
+                "chave": "acima_361",
+                "label": "Acima de 361 dias",
+                "horizonte_dias": 720,
+                "valor": 4000.75,
+                "acumulado": 17200.75
+              }
+            ],
+            "legado_consolidado": false
+          }
+        }
+      },
+      "tx_count": 3
+    }
+  ]
+}

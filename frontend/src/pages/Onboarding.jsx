@@ -2,7 +2,8 @@ import React, { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useFinance } from "@/context/FinanceContext";
 import { useAuth } from "@/context/AuthContext";
-import { brl, parseNum, stripLeadingZeros } from "@/lib/format";
+import { brl, parseNum } from "@/lib/format";
+import { IntInput, MoneyInput, PctInput } from "@/components/FormattedInputs";
 import {
   Gem,
   Wallet,
@@ -234,13 +235,12 @@ export default function Onboarding() {
                   </div>
                 </div>
               </div>
-              <input
+              <MoneyInput
                 data-testid="onboarding-income"
-                className="input-premium font-mono-num text-[22px] font-display"
-                inputMode="decimal"
-                placeholder="Ex: 6500"
+                className="text-[22px] font-display"
+                placeholder="6.500"
                 value={income}
-                onChange={(e) => setIncome(stripLeadingZeros(e.target.value))}
+                onChange={setIncome}
                 autoFocus
               />
               {incomeValue > 0 && (
@@ -337,13 +337,11 @@ export default function Onboarding() {
                       <label className="text-[11px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>
                         Quanto ainda deve
                       </label>
-                      <input
+                      <MoneyInput
                         data-testid="onboarding-debt-balance"
-                        className="input-premium"
-                        placeholder="R$ 12.000"
-                        inputMode="decimal"
+                        placeholder="12.000"
                         value={debt.balance}
-                        onChange={(e) => setDebt((d) => ({ ...d, balance: stripLeadingZeros(e.target.value) }))}
+                        onChange={(balance) => setDebt((d) => ({ ...d, balance }))}
                       />
                       <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
                         Saldo que falta quitar hoje
@@ -353,13 +351,11 @@ export default function Onboarding() {
                       <label className="text-[11px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>
                         Juros ao mês
                       </label>
-                      <input
+                      <PctInput
                         data-testid="onboarding-debt-rate"
-                        className="input-premium"
-                        placeholder="Ex: 2,5"
-                        inputMode="decimal"
+                        placeholder="2,5"
                         value={debt.rate}
-                        onChange={(e) => setDebt((d) => ({ ...d, rate: stripLeadingZeros(e.target.value) }))}
+                        onChange={(rate) => setDebt((d) => ({ ...d, rate }))}
                       />
                       <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
                         % a.m. — se tem juros, trate como financiamento
@@ -369,13 +365,11 @@ export default function Onboarding() {
                       <label className="text-[11px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>
                         Parcela mensal
                       </label>
-                      <input
+                      <MoneyInput
                         data-testid="onboarding-debt-min"
-                        className="input-premium"
-                        placeholder="R$ 450"
-                        inputMode="decimal"
+                        placeholder="450"
                         value={debt.minPayment}
-                        onChange={(e) => setDebt((d) => ({ ...d, minPayment: stripLeadingZeros(e.target.value) }))}
+                        onChange={(minPayment) => setDebt((d) => ({ ...d, minPayment }))}
                       />
                       <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
                         Quanto você paga (ou pretende pagar) por mês
@@ -385,13 +379,12 @@ export default function Onboarding() {
                       <label className="text-[11px] uppercase tracking-[0.14em] block mb-1.5" style={{ color: "var(--text-muted)" }}>
                         Prazo restante
                       </label>
-                      <input
+                      <IntInput
                         data-testid="onboarding-debt-term"
-                        className="input-premium"
-                        placeholder="Ex: 12"
-                        inputMode="numeric"
+                        placeholder="12"
+                        suffix="meses"
                         value={debt.termMonths}
-                        onChange={(e) => setDebt((d) => ({ ...d, termMonths: stripLeadingZeros(e.target.value) }))}
+                        onChange={(termMonths) => setDebt((d) => ({ ...d, termMonths }))}
                       />
                       <p className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>
                         Em quantos meses quer (ou precisa) quitar — preencha sempre que souber

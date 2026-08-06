@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinPremium · Apresentação · Personas & Fluxos</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b1220; --ink: #f3f6fb; --muted: #9aa8c2; --line: rgba(255,255,255,.08);
+      --accent: #3dd6c6; --ok: #5ce0a0; --gold: #e8ce87;
+      --ana: #ff8b6a; --bruno: #6aa8ff; --carla: #c084fc; --diego: #3dd6c6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #05080f; color: var(--ink); font-family: "Instrument Sans", system-ui, sans-serif; overflow: hidden; }
+    .deck {
+      width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16));
+      margin: auto; position: absolute; inset: 0;
+      background:
+        radial-gradient(900px 500px at 10% -10%, rgba(61,214,198,.18), transparent 55%),
+        radial-gradient(700px 420px at 100% 0%, rgba(232,206,135,.12), transparent 50%),
+        linear-gradient(160deg, #0b1220 0%, #101a2d 55%, #0a101c 100%);
+      overflow: hidden;
+    }
+    .slide {
+      position: absolute; inset: 0; padding: clamp(28px, 4vw, 56px);
+      opacity: 0; visibility: hidden; transition: opacity .35s ease;
+      display: flex; flex-direction: column;
+    }
+    .slide.active { opacity: 1; visibility: visible; }
+    .eyebrow { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin-bottom: 12px; }
+    h1, h2 { font-family: Fraunces, Georgia, serif; font-weight: 700; line-height: 1.1; }
+    h1 { font-size: clamp(34px, 5vw, 58px); max-width: 18ch; }
+    h2 { font-size: clamp(26px, 3.4vw, 40px); margin-bottom: 10px; }
+    p, li { color: var(--muted); font-size: clamp(14px, 1.5vw, 18px); line-height: 1.45; }
+    .lead { max-width: 46ch; margin-top: 16px; font-size: clamp(16px, 1.8vw, 20px); color: #d7e0f0; }
+    .footer {
+      margin-top: auto; display: flex; justify-content: space-between; align-items: center;
+      padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px;
+    }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 22px; }
+    .grid-2 { display: grid; grid-template-columns: 1.1fr .9fr; gap: 24px; margin-top: 18px; flex: 1; min-height: 0; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 20px; }
+    .card { background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 18px; padding: 18px; }
+    .card h3 { font-size: 16px; margin-bottom: 6px; color: var(--ink); }
+    .card .tag {
+      display: inline-block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+      padding: 4px 8px; border-radius: 999px; margin-bottom: 10px; font-weight: 600;
+    }
+    .metric { background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+    .metric .n { font-family: Fraunces, Georgia, serif; font-size: clamp(28px, 3.5vw, 42px); color: var(--ink); line-height: 1; }
+    .metric .l { margin-top: 6px; font-size: 13px; color: var(--muted); }
+    .ok { color: var(--ok); }
+    .steps { display: grid; gap: 8px; margin-top: 14px; }
+    .step {
+      display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center;
+      padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid var(--line); font-size: 14px;
+    }
+    .step .dot {
+      width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+      background: rgba(92,224,160,.15); color: var(--ok); font-size: 12px; font-weight: 700;
+    }
+    .badge { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); }
+    .nav { position: absolute; right: 20px; bottom: 18px; z-index: 5; display: flex; gap: 8px; }
+    .nav button {
+      border: 1px solid var(--line); background: rgba(0,0,0,.35); color: var(--ink);
+      border-radius: 999px; padding: 8px 14px; cursor: pointer; font: inherit; font-size: 13px;
+    }
+    .nav button:hover { border-color: var(--accent); color: var(--accent); }
+    .chart-wrap { height: 240px; margin-top: 8px; }
+    .kicker { color: #d7e0f0; margin-bottom: 8px; }
+    ul.clean { list-style: none; display: grid; gap: 8px; margin-top: 14px; }
+    ul.clean li::before { content: "→ "; color: var(--accent); }
+    code { color: var(--gold); font-size: 0.92em; }
+    @media (max-width: 900px) {
+      .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr 1fr; }
+      body { overflow: auto; }
+      .deck { position: relative; width: 100%; height: auto; min-height: 100vh; }
+      .slide { position: relative; opacity: 1; visibility: visible; min-height: 100vh; border-bottom: 1px solid var(--line); }
+      .nav { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck" id="deck">
+    <!-- 1 -->
+    <section class="slide active">
+      <div class="eyebrow">FinPremium · Wealth OS · Apresentação · 07 ago 2026</div>
+      <h1>Do lead ao plano: 4 personas no app</h1>
+      <p class="lead">Jornadas validadas ponta a ponta — funil, onboarding, orçamento, dívidas, crédito BACEN e WhatsApp como canal opcional.</p>
+      <div class="grid-4" style="margin-top:auto; margin-bottom:18px;">
+        <div class="metric"><div class="n ok">4/4</div><div class="l">Personas OK</div></div>
+        <div class="metric"><div class="n">62</div><div class="l">Etapas validadas</div></div>
+        <div class="metric"><div class="n">742</div><div class="l">Score (Ana & Diego)</div></div>
+        <div class="metric"><div class="n">SCR</div><div class="l">Importa pro plano</div></div>
+      </div>
+      <div class="footer"><span>FinPremium</span><span>1 / 14</span></div>
+    </section>
+
+    <!-- 2 -->
+    <section class="slide">
+      <div class="eyebrow">O produto em uma frase</div>
+      <h2>Wealth OS pessoal, dark premium</h2>
+      <div class="grid-3">
+        <div class="card"><h3>Organizar</h3><p>Dashboard, lançamentos, orçamento 50/30/20 e WhatsApp (texto, foto, áudio).</p></div>
+        <div class="card"><h3>Quitar</h3><p>Dívidas com bola de neve / avalanche + Análise de Crédito (score + SCR).</p></div>
+        <div class="card"><h3>Crescer</h3><p>Metas, Número da Liberdade (FIRE) e Projeção de caixa.</p></div>
+      </div>
+      <p class="lead">Pagamento único lifetime · funil landing + calculadora · app autenticado.</p>
+      <div class="footer"><span>Produto</span><span>2 / 14</span></div>
+    </section>
+
+    <!-- 3 -->
+    <section class="slide">
+      <div class="eyebrow">Casting</div>
+      <h2>Quatro personas, quatro jobs</h2>
+      <div class="grid-4">
+        <div class="card">
+          <span class="tag" style="background:rgba(255,139,106,.15);color:var(--ana)">Ana</span>
+          <h3>Endividada</h3>
+          <p>R$ 4.200 · sair das dívidas · cartão + crédito SCR</p>
+        </div>
+        <div class="card">
+          <span class="tag" style="background:rgba(106,168,255,.15);color:var(--bruno)">Bruno</span>
+          <h3>Investidor</h3>
+          <p>R$ 12.500 · reserva + FIRE · financiamento carro</p>
+        </div>
+        <div class="card">
+          <span class="tag" style="background:rgba(192,132,252,.15);color:var(--carla)">Carla</span>
+          <h3>Freelancer</h3>
+          <p>R$ 6.800 · organizar fluxo · 50/30/20</p>
+        </div>
+        <div class="card">
+          <span class="tag" style="background:rgba(61,214,198,.15);color:var(--diego)">Diego</span>
+          <h3>Premium crédito</h3>
+          <p>R$ 9.800 · score/SCR → importar pro plano</p>
+        </div>
+      </div>
+      <div class="footer"><span>Personas</span><span>3 / 14</span></div>
+    </section>
+
+    <!-- 4 -->
+    <section class="slide">
+      <div class="eyebrow">Jornada comum</div>
+      <h2>Pipeline que todas percorrem</h2>
+      <div class="steps">
+        <div class="step"><div class="dot">1</div><div>Lead (calculadora ou venda) — site ou WhatsApp</div><span class="badge">OK</span></div>
+        <div class="step"><div class="dot">2</div><div>Cadastro + CPF + sessão</div><span class="badge">OK</span></div>
+        <div class="step"><div class="dot">3</div><div>Onboarding: renda → objetivo → dívida (números pt-BR)</div><span class="badge">OK</span></div>
+        <div class="step"><div class="dot">4</div><div>Lançamentos 50/30/20 + dashboard</div><span class="badge">OK</span></div>
+        <div class="step"><div class="dot">5</div><div>Crédito (opcional): consulta → relatório → import SCR</div><span class="badge">OK</span></div>
+        <div class="step"><div class="dot">6</div><div>Plano atualizado (dívidas, metas, curva na Projeção)</div><span class="badge">OK</span></div>
+      </div>
+      <div class="footer"><span>Etapas</span><span>4 / 14</span></div>
+    </section>
+
+    <!-- 5 Ana -->
+    <section class="slide">
+      <div class="eyebrow">Persona 01 · Ana Souza</div>
+      <h2>Endividada — do caos ao plano</h2>
+      <div class="grid-2">
+        <div>
+          <p class="kicker">Job: sair do vermelho com clareza de parcelas e juros.</p>
+          <div class="steps">
+            <div class="step"><div class="dot">✓</div><div>Renda R$ 4.200 · objetivo quitar dívidas</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>Onboarding com máscara R$ / % / meses</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>Dashboard: foco dívidas + sobra após parcelas</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>Crédito → score 742 · rating B</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>Import SCR R$ 18.450 · meta sincronizada</div><span class="badge">OK</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Demo ao vivo</h3>
+          <p style="margin:10px 0">Mostrar onboarding da Ana → dashboard com “Foco: sair das dívidas” → Controle de Dívidas.</p>
+          <div class="metric"><div class="n" style="font-size:28px">19/19</div><div class="l">etapas da persona</div></div>
+        </div>
+      </div>
+      <div class="footer"><span>Ana</span><span>5 / 14</span></div>
+    </section>
+
+    <!-- 6 Bruno -->
+    <section class="slide">
+      <div class="eyebrow">Persona 02 · Bruno Lima</div>
+      <h2>Investidor — reserva + FIRE</h2>
+      <div class="grid-2">
+        <div>
+          <p class="kicker">Job: disciplina de aporte e Número da Liberdade.</p>
+          <div class="steps">
+            <div class="step"><div class="dot">✓</div><div>Renda R$ 12.500 · liberdade financeira</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>Carro R$ 28k + reserva R$ 37,5k</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>Meta liberdade R$ 1,5M (R$ 85k atual)</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>FIRE 8% a.a. / SWR 4%</div><span class="badge">OK</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Progresso das metas</h3>
+          <div class="chart-wrap"><canvas id="brunoChart"></canvas></div>
+        </div>
+      </div>
+      <div class="footer"><span>Bruno · 11/11</span><span>6 / 14</span></div>
+    </section>
+
+    <!-- 7 Carla -->
+    <section class="slide">
+      <div class="eyebrow">Persona 03 · Carla Mendes</div>
+      <h2>Freelancer — organizar o fluxo</h2>
+      <div class="grid-2">
+        <div>
+          <p class="kicker">Job: renda variável vira orçamento legível.</p>
+          <div class="steps">
+            <div class="step"><div class="dot">✓</div><div>Renda R$ 6.800 · organizar gastos</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>Colchão 3 meses (R$ 4.100 / R$ 20.400)</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>5 lançamentos nas 3 categorias</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>Orçamento 50/30/20 planejado</div><span class="badge">OK</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Mix de gastos (sessão)</h3>
+          <div class="chart-wrap"><canvas id="carlaChart"></canvas></div>
+        </div>
+      </div>
+      <div class="footer"><span>Carla · 13/13</span><span>7 / 14</span></div>
+    </section>
+
+    <!-- 8 Diego -->
+    <section class="slide">
+      <div class="eyebrow">Persona 04 · Diego Rocha</div>
+      <h2>Premium — crédito vira plano</h2>
+      <div class="grid-2">
+        <div>
+          <p class="kicker">Job: consultar BACEN e importar SCR sem redigitar.</p>
+          <div class="steps">
+            <div class="step"><div class="dot">✓</div><div>Consulta inclusa no plano</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>Score 742 · rating B</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>Import SCR → dívidas + creditInsight</div><span class="badge">OK</span></div>
+            <div class="step"><div class="dot">✓</div><div>Curva de vencimentos na Projeção</div><span class="badge">OK</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Curva SCR</h3>
+          <div class="chart-wrap"><canvas id="diegoChart"></canvas></div>
+        </div>
+      </div>
+      <div class="footer"><span>Diego · 19/19</span><span>8 / 14</span></div>
+    </section>
+
+    <!-- 9 WhatsApp -->
+    <section class="slide">
+      <div class="eyebrow">Canal opcional</div>
+      <h2>Lead escolhe: site ou WhatsApp</h2>
+      <div class="grid-3">
+        <div class="card"><h3>Na calculadora / venda</h3><p>CTA “Continuar no site” ou “Começar pelo WhatsApp” — sem forçar um único funil.</p></div>
+        <div class="card"><h3>Mensagem pronta</h3><p>Abre <code>wa.me</code> com aporte, prazo e patrimônio da simulação já preenchidos.</p></div>
+        <div class="card"><h3>No app (cliente)</h3><p>Lançamentos por texto, foto do cupom ou áudio (Twilio + transcrição) — já no GitHub.</p></div>
+      </div>
+      <ul class="clean">
+        <li>WhatsApp alimenta dados; o Wealth OS continua no app</li>
+        <li>Lead WA sem e-mail não entra no drip de e-mail</li>
+        <li>MVP de teste: porta aberta, não conversa inteligente completa</li>
+      </ul>
+      <div class="footer"><span>WhatsApp</span><span>9 / 14</span></div>
+    </section>
+
+    <!-- 10 Crédito -->
+    <section class="slide">
+      <div class="eyebrow">Diferencial</div>
+      <h2>Análise de Crédito fecha o loop</h2>
+      <div class="steps">
+        <div class="step"><div class="dot">1</div><div>CPF vinculado à conta (LGPD / set-once)</div><span class="badge">OK</span></div>
+        <div class="step"><div class="dot">2</div><div>Quote por APIs (score, SCR, pendências…)</div><span class="badge">OK</span></div>
+        <div class="step"><div class="dot">3</div><div>Checkout incluso ou Stripe</div><span class="badge">OK</span></div>
+        <div class="step"><div class="dot">4</div><div>Relatório → “Importar para o meu plano”</div><span class="badge">OK</span></div>
+        <div class="step"><div class="dot">5</div><div>Dívidas SCR + meta + curva na Projeção</div><span class="badge">OK</span></div>
+      </div>
+      <div class="footer"><span>Crédito / Direct Data</span><span>10 / 14</span></div>
+    </section>
+
+    <!-- 11 Scorecard -->
+    <section class="slide">
+      <div class="eyebrow">Resultados da rodada</div>
+      <h2>Scorecard</h2>
+      <div class="grid-2">
+        <div class="card">
+          <div class="chart-wrap" style="height:280px"><canvas id="passChart"></canvas></div>
+        </div>
+        <div>
+          <div class="grid-2" style="grid-template-columns:1fr 1fr; margin-top:0">
+            <div class="metric"><div class="n ok">100%</div><div class="l">Pass rate</div></div>
+            <div class="metric"><div class="n">2</div><div class="l">Imports SCR</div></div>
+            <div class="metric"><div class="n">14</div><div class="l">Lançamentos</div></div>
+            <div class="metric"><div class="n">0</div><div class="l">Falhas de auth</div></div>
+          </div>
+          <p style="margin-top:16px">Relatório: <code>test_reports/personas/latest.json</code></p>
+        </div>
+      </div>
+      <div class="footer"><span>Scorecard</span><span>11 / 14</span></div>
+    </section>
+
+    <!-- 12 Demo -->
+    <section class="slide">
+      <div class="eyebrow">Roteiro ao vivo · ~8 min</div>
+      <h2>O que mostrar amanhã</h2>
+      <div class="steps">
+        <div class="step"><div class="dot">1</div><div><strong style="color:#fff">Landing</strong> — Ver planos + “Começar no WhatsApp”</div><span class="badge">30s</span></div>
+        <div class="step"><div class="dot">2</div><div><strong style="color:#fff">Calculadora</strong> — resultado → escolha site vs WhatsApp</div><span class="badge">1m</span></div>
+        <div class="step"><div class="dot">3</div><div><strong style="color:#fff">Onboarding Ana</strong> — renda/dívida com máscara R$</div><span class="badge">2m</span></div>
+        <div class="step"><div class="dot">4</div><div><strong style="color:#fff">Dashboard</strong> — foco dívidas + sobra após parcelas</div><span class="badge">1m</span></div>
+        <div class="step"><div class="dot">5</div><div><strong style="color:#fff">Crédito</strong> — relatório / import SCR (ou mock se Atlas falhar)</div><span class="badge">2m</span></div>
+        <div class="step"><div class="dot">6</div><div><strong style="color:#fff">Projeção / Dívidas</strong> — curva ou simulador</div><span class="badge">1m</span></div>
+      </div>
+      <div class="footer"><span>Demo</span><span>12 / 14</span></div>
+    </section>
+
+    <!-- 13 Riscos -->
+    <section class="slide">
+      <div class="eyebrow">Antes de abrir</div>
+      <h2>Checklist técnico</h2>
+      <div class="grid-3">
+        <div class="card"><h3>Backend</h3><p>Atlas OK ou <code>USE_MOCK_DB=1</code> + <code>CREDIT_PROVIDER=mock</code> para demo estável.</p></div>
+        <div class="card"><h3>Frontend</h3><p><code>localhost:3000</code> apontando para API local. Máscaras de número já no onboarding/dívidas.</p></div>
+        <div class="card"><h3>WhatsApp</h3><p><code>LEAD_WHATSAPP_E164</code> com número real BR se for clicar no CTA; sandbox Twilio só com join.</p></div>
+      </div>
+      <ul class="clean">
+        <li>Não depender de Direct Data ao vivo se o token/crédito estiver no limite</li>
+        <li>Conta demo Ana pronta (ou recriar em 1 min no onboarding)</li>
+      </ul>
+      <div class="footer"><span>Prep</span><span>13 / 14</span></div>
+    </section>
+
+    <!-- 14 Close -->
+    <section class="slide">
+      <div class="eyebrow">Fechamento</div>
+      <h2>O que já prova valor</h2>
+      <ul class="clean">
+        <li>Personas reais percorrem o funil até o plano financeiro</li>
+        <li>Crédito BACEN não é relatório morto — vira dívida e projeção</li>
+        <li>WhatsApp é porta opcional, não substituto do app</li>
+        <li>Próximo: conversa WA mais rica + SCR com modalidades em toda consulta</li>
+      </ul>
+      <p class="lead">Arquivos: <code>apresentacoes/personas-finpremium.pptx</code> e <code>.html</code></p>
+      <div class="footer"><span>Obrigado</span><span>14 / 14 · ← →</span></div>
+    </section>
+  </div>
+
+  <div class="nav">
+    <button type="button" id="prev">←</button>
+    <button type="button" id="next">→</button>
+  </div>
+
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    let i = 0;
+    const show = (n) => {
+      i = (n + slides.length) % slides.length;
+      slides.forEach((s, idx) => s.classList.toggle('active', idx === i));
+      if (i === 5) ensureBruno();
+      if (i === 6) ensureCarla();
+      if (i === 7) ensureDiego();
+      if (i === 10) ensurePass();
+    };
+    document.getElementById('prev').onclick = () => show(i - 1);
+    document.getElementById('next').onclick = () => show(i + 1);
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); show(i + 1); }
+      if (e.key === 'ArrowLeft') show(i - 1);
+    });
+
+    let bruno, carla, diego, passc;
+    const common = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#9aa8c2' } } } };
+    function ensureBruno() {
+      if (bruno) return;
+      bruno = new Chart(document.getElementById('brunoChart'), {
+        type: 'bar',
+        data: {
+          labels: ['Reserva', 'Liberdade'],
+          datasets: [
+            { label: 'Atual', data: [12000, 85000], backgroundColor: '#6aa8ff' },
+            { label: 'Meta', data: [37500, 1500000], backgroundColor: 'rgba(106,168,255,.25)' },
+          ]
+        },
+        options: { ...common, scales: { x: { ticks: { color: '#9aa8c2' }, grid: { color: 'rgba(255,255,255,.06)' } }, y: { ticks: { color: '#9aa8c2' }, grid: { color: 'rgba(255,255,255,.06)' }, type: 'logarithmic' } } }
+      });
+    }
+    function ensureCarla() {
+      if (carla) return;
+      carla = new Chart(document.getElementById('carlaChart'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Necessidades', 'Desejos', 'Investimentos'],
+          datasets: [{ data: [214.1, 285, 800], backgroundColor: ['#c084fc', '#e8ce87', '#3dd6c6'], borderWidth: 0 }]
+        },
+        options: { ...common }
+      });
+    }
+    function ensureDiego() {
+      if (diego) return;
+      diego = new Chart(document.getElementById('diegoChart'), {
+        type: 'line',
+        data: {
+          labels: ['1–30', '31–60', '61–90', '91–180', '181–360', '361+'],
+          datasets: [{
+            label: 'Acumulado SCR',
+            data: [1800, 3600, 5400, 8400, 13200, 17200],
+            borderColor: '#3dd6c6', backgroundColor: 'rgba(61,214,198,.2)', fill: true, tension: .3
+          }]
+        },
+        options: { ...common, scales: { x: { ticks: { color: '#9aa8c2' }, grid: { color: 'rgba(255,255,255,.06)' } }, y: { ticks: { color: '#9aa8c2' }, grid: { color: 'rgba(255,255,255,.06)' } } } }
+      });
+    }
+    function ensurePass() {
+      if (passc) return;
+      passc = new Chart(document.getElementById('passChart'), {
+        type: 'bar',
+        data: {
+          labels: ['Ana', 'Bruno', 'Carla', 'Diego'],
+          datasets: [{ label: 'Etapas OK', data: [19, 11, 13, 19], backgroundColor: ['#ff8b6a', '#6aa8ff', '#c084fc', '#3dd6c6'] }]
+        },
+        options: { ...common, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#9aa8c2' }, grid: { display: false } }, y: { ticks: { color: '#9aa8c2' }, grid: { color: 'rgba(255,255,255,.06)' }, beginAtZero: true, max: 20 } } }
+      });
+    }
+  </script>
+</body>
+</html>

@@ -3,6 +3,11 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { brl } from "@/lib/format";
 import { saveLeadEmail } from "@/lib/leadEmail";
+import {
+  buildLeadWhatsAppMessage,
+  buildWhatsAppLeadUrl,
+  fetchWhatsAppLeadConfig,
+} from "@/lib/whatsappLead";
 import { useAuth } from "@/context/AuthContext";
 import {
   ChevronRight,
@@ -19,6 +24,7 @@ import {
   Clock,
   Play,
   X,
+  MessageCircle,
 } from "lucide-react";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -152,9 +158,12 @@ export default function SalesPage() {
   const [email, setEmail] = useState("");
   const [openFaq, setOpenFaq] = useState(null);
   const [timeLeft, setTimeLeft] = useState({ h: 47, m: 59, s: 59 });
+  const [waConfig, setWaConfig] = useState({ enabled: false, e164: "" });
+  const [waBusy, setWaBusy] = useState(false);
 
   useEffect(() => {
     axios.get(`${API}/packages`).then((r) => setPackages(r.data)).catch(() => {});
+    fetchWhatsAppLeadConfig(API).then(setWaConfig);
   }, []);
 
   // Countdown timer (48h)
@@ -206,6 +215,28 @@ export default function SalesPage() {
     document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const handleWhatsAppLead = async () => {
+    if (!waConfig.enabled || !waConfig.e164) return;
+    setWaBusy(true);
+    if (email) saveLeadEmail(email);
+    try {
+      await axios.post(`${API}/leads`, {
+        email: email && email.includes("@") ? email : undefined,
+        preferred_channel: "whatsapp",
+        source: "venda_whatsapp",
+        metadata: { page: "venda" },
+      });
+    } catch (err) {
+      console.warn("WhatsApp lead capture failed", err);
+    }
+    const url = buildWhatsAppLeadUrl(
+      waConfig.e164,
+      buildLeadWhatsAppMessage({ email: email.includes("@") ? email : undefined })
+    );
+    setWaBusy(false);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <div className="grain min-h-screen" data-testid="sales-page">
       {/* HEADER */}
@@ -242,6 +273,19 @@ export default function SalesPage() {
           <button onClick={() => nav("/calculadora")} className="btn-ghost" data-testid="try-calc" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <Play className="w-4 h-4" /> Testar calculadora grátis
           </button>
+          {waConfig.enabled && (
+            <button
+              type="button"
+              onClick={handleWhatsAppLead}
+              disabled={waBusy}
+              className="btn-ghost"
+              data-testid="hero-whatsapp"
+              style={{ display: "flex", gap: 8, alignItems: "center", opacity: waBusy ? 0.6 : 1 }}
+            >
+              <MessageCircle className="w-4 h-4" />
+              {waBusy ? "Abrindo..." : "Começar no WhatsApp"}
+            </button>
+          )}
         </div>
         <div className="mt-8 flex items-center justify-center gap-6 text-[11px] flex-wrap" style={{ color: "var(--text-muted)" }}>
           <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" style={{ color: "var(--gold)" }} /> 7 dias de garantia</span>
@@ -422,11 +466,29 @@ export default function SalesPage() {
           ))}
         </div>
 
-        <div className="mt-10 text-center">
+        <div className="mt-10 text-center space-y-4">
           <div className="chip" style={{ padding: "8px 16px" }}>
             <Shield className="w-3.5 h-3.5" style={{ color: "var(--gold)" }} />
             Garantia incondicional de 7 dias · devolvemos 100% sem perguntas
           </div>
+          {waConfig.enabled && (
+            <div>
+              <button
+                type="button"
+                onClick={handleWhatsAppLead}
+                disabled={waBusy}
+                className="btn-ghost"
+                data-testid="pricing-whatsapp"
+                style={{ display: "inline-flex", gap: 8, alignItems: "center", opacity: waBusy ? 0.6 : 1 }}
+              >
+                <MessageCircle className="w-4 h-4" />
+                Prefiro começar pelo WhatsApp
+              </button>
+              <p className="text-[11px] mt-2" style={{ color: "var(--text-muted)" }}>
+                Opcional · registra o lead e abre o chat com uma mensagem pronta (teste)
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
