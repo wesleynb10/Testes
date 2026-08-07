@@ -104,9 +104,11 @@ export default function Transactions() {
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState(null);
 
-  const load = async () => {
-    setLoading(true);
-    setError(null);
+  const load = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const { data } = await api.get("/transactions");
       const list = data.transactions || [];
@@ -119,13 +121,30 @@ export default function Transactions() {
         });
       }
     } catch (err) {
-      setError(formatApiError(err.response?.data?.detail) || err.message);
+      if (!silent) {
+        setError(formatApiError(err.response?.data?.detail) || err.message);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Recarrega ao abrir, ao voltar o foco (ex.: depois do WhatsApp) e em polling leve.
+  useEffect(() => {
+    load();
+    const onFocus = () => load({ silent: true });
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load({ silent: true });
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    const poll = window.setInterval(() => load({ silent: true }), 8000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(poll);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = async (e) => {
     e.preventDefault();
@@ -286,9 +305,21 @@ export default function Transactions() {
 
       {/* Lista */}
       <div className="card-premium p-6" data-testid="transaction-list">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <div className="kpi-label">Histórico</div>
-          <div className="chip"><Receipt className="w-3 h-3" /> {items.length} registros</div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => load()}
+              className="btn-ghost text-[12px]"
+              data-testid="tx-refresh"
+              style={{ padding: "6px 12px" }}
+              title="Atualizar lançamentos do WhatsApp"
+            >
+              Atualizar
+            </button>
+            <div className="chip"><Receipt className="w-3 h-3" /> {items.length} registros</div>
+          </div>
         </div>
 
         {loading ? (
