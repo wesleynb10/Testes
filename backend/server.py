@@ -613,7 +613,12 @@ async def set_cpf(payload: SetCpfRequest, current: dict = Depends(get_current_us
 
 @api_router.post("/auth/phone")
 async def set_phone(payload: SetPhoneRequest, current: dict = Depends(get_current_user)):
-    """Vincula (ou atualiza) o WhatsApp da conta para lançamentos via Twilio."""
+    """Vincula (ou atualiza) o WhatsApp da conta para lançamentos via Twilio.
+
+    Número é único no sistema. Se já estiver em outra conta:
+    - usuário comum → 409 (precisa liberar o número na outra conta);
+    - admin → assume o número e migra lançamentos WhatsApp dessa linha.
+    """
     phone = limpar_telefone(payload.phone or "")
     digits = "".join(ch for ch in phone if ch.isdigit())
     if not phone or len(digits) < 10:
@@ -628,9 +633,38 @@ async def set_phone(payload: SetPhoneRequest, current: dict = Depends(get_curren
         }
     )
     if other:
-        raise HTTPException(
-            status_code=409,
-            detail="Este WhatsApp já está vinculado a outra conta.",
+        if current.get("role") != "admin":
+            other_email = (other.get("email") or "outra conta").strip()
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Este WhatsApp já está vinculado a {other_email}. "
+                    "Entre nessa conta e troque/remova o número, ou use um WhatsApp diferente."
+                ),
+            )
+        # Admin reassume o número: libera a outra conta e traz os lançamentos WhatsApp.
+        await db.users.update_one(
+            {"id": other["id"]},
+            {"$unset": {"phone": "", "whatsapp": ""}},
+        )
+        await db.transactions.update_many(
+            {
+                "user_id": other["id"],
+                "phone": phone,
+                "source": {"$regex": r"^whatsapp"},
+            },
+            {
+                "$set": {
+                    "user_id": current["id"],
+                    "user_email": current.get("email"),
+                }
+            },
+        )
+        logger.info(
+            "WhatsApp %s reassumido por admin %s (antes: %s)",
+            phone,
+            current.get("email"),
+            other.get("email"),
         )
     await db.users.update_one(
         {"id": current["id"]},
@@ -1797,8 +1831,30 @@ async def admin_leads(current: dict = Depends(get_current_admin), limit: int = 2
 
 @api_router.get("/admin/transactions")
 async def admin_transactions(current: dict = Depends(get_current_admin), limit: int = 200):
+    """Vendas Stripe (payment_transactions) — não são os lançamentos do app/WhatsApp."""
     docs = await db.payment_transactions.find({}, {"_id": 0}).sort("created_at", -1).to_list(length=limit)
     return {"transactions": docs, "count": len(docs)}
+
+
+@api_router.get("/admin/lancamentos")
+async def admin_lancamentos(
+    current: dict = Depends(get_current_admin),
+    limit: int = 200,
+    source: Optional[str] = None,
+):
+    """Lançamentos financeiros do produto (app + WhatsApp), para o dono acompanhar o wedge."""
+    query: Dict[str, Any] = {}
+    if source == "whatsapp":
+        query["source"] = {"$regex": r"^whatsapp"}
+    elif source:
+        query["source"] = source
+    docs = (
+        await db.transactions.find(query, {"_id": 0})
+        .sort("created_at", -1)
+        .to_list(length=limit)
+    )
+    total = sum(float(d.get("amount") or 0) for d in docs)
+    return {"transactions": docs, "count": len(docs), "total": round(total, 2)}
 
 
 @api_router.get("/admin/drip")

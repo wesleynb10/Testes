@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { brl } from "@/lib/format";
 import { CheckCircle2, Gem, Download, ChevronRight, Mail, AlertCircle, Loader2 } from "lucide-react";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = `${(process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '')}/api`;
 
 export default function ThankYou() {
   const nav = useNavigate();
