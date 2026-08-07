@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>FinPremium · Proposta para investidores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --line:rgba(255,255,255,.10);
+    --gold:#c9a961; --gold-bright:#e8ce87; --gold-deep:#8b7a3e;
+    --text:#f4f1ea; --text-2:#b6b1a6; --muted:#7d786e; --ok:#7fb069;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  @page{ size:330mm 186mm; margin:0 }
+  html,body{
+    background:#05040a;color:var(--text);font-family:Manrope,system-ui,sans-serif;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    width:330mm;margin:0;padding:0;
+  }
+  .slide{
+    position:relative;width:330mm;height:186mm;min-height:186mm;max-height:186mm;
+    padding:14mm 16mm 11mm;
+    display:flex;flex-direction:column;overflow:hidden;
+    background:
+      radial-gradient(900px 480px at 8% -12%, rgba(201,169,97,.15), transparent 58%),
+      radial-gradient(700px 400px at 100% 0%, rgba(122,154,184,.08), transparent 50%),
+      linear-gradient(158deg,#0b0a0f 0%,#141219 56%,#0a0910 100%);
+    page-break-after:always;break-after:page;page-break-inside:avoid;break-inside:avoid;
+  }
+  .slide:last-child{page-break-after:auto;break-after:auto}
+  .eyebrow{font-size:9pt;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:6px}
+  h1{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:30pt;line-height:1.05;letter-spacing:-.02em}
+  h2{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:24pt;line-height:1.08;letter-spacing:-.02em;margin-bottom:6px}
+  h3{font-size:10.5pt;font-weight:700;color:var(--text);margin-bottom:3px}
+  p,li{color:var(--text-2);font-size:9.2pt;line-height:1.45}
+  .lead{color:#ded9cf;font-size:11pt;line-height:1.45;max-width:95ch;margin-top:6px}
+  .foot{margin-top:auto;padding-top:8px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;color:var(--muted);font-size:8pt;letter-spacing:.04em}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .brand .mark{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;
+    background:linear-gradient(140deg,var(--gold-bright),var(--gold-deep));color:#0b0a0f;
+    font-family:Fraunces,serif;font-size:14pt;font-weight:700}
+  .brand .nm{font-family:Fraunces,serif;font-size:14pt}
+  .brand .sub{font-size:7pt;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+  .mt{margin-top:12px}
+
+  .card{background:rgba(255,255,255,.032);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+  .card.gold{background:linear-gradient(150deg,rgba(201,169,97,.12),rgba(201,169,97,.03));border-color:rgba(201,169,97,.34)}
+  .card p{font-size:8.7pt;line-height:1.4}
+  .pill{display:inline-block;font-size:7.2pt;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    padding:2px 8px;border-radius:999px;background:rgba(201,169,97,.14);color:var(--gold-bright);
+    border:1px solid rgba(201,169,97,.3)}
+  .pill.ok{background:rgba(127,176,105,.14);color:var(--ok);border-color:rgba(127,176,105,.34)}
+
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:9pt}
+  th{text-align:left;font-size:7.5pt;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);
+     font-weight:700;padding:6px 8px;border-bottom:1px solid rgba(201,169,97,.3)}
+  td{padding:6px 8px;border-bottom:1px solid var(--line);color:var(--text-2)}
+  td.k{color:var(--text);font-weight:600}
+  td.r{text-align:right}
+  td.c{text-align:center}
+
+  .shot-wrap{
+    border-radius:12px;overflow:hidden;border:1px solid rgba(201,169,97,.28);
+    box-shadow:0 18px 50px rgba(0,0,0,.45);background:#0b0a0f;height:100%;
+  }
+  .shot-wrap img{width:100%;height:100%;object-fit:cover;object-position:top left;display:block}
+  ul.clean{list-style:none;display:grid;gap:4px;margin-top:5px}
+  ul.clean li{padding-left:14px;position:relative;font-size:8.6pt;line-height:1.35}
+  ul.clean li::before{content:"›";position:absolute;left:0;color:var(--gold);font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- 1 · PRODUTO + FEATURES -->
+<section class="slide">
+  <div class="brand">
+    <div class="mark">F</div>
+    <div><div class="nm">FinPremium</div><div class="sub">Proposta para investidores</div></div>
+  </div>
+  <div class="eyebrow">Slide 1 · O produto</div>
+  <h1>Organização financeira com WhatsApp e crédito — já no ar.</h1>
+  <p class="lead">App em produção. Pagamento único vitalício (R$ 47 / 97 / 297). Ainda sem validação de canal em escala —
+    o próximo passo é provar adesão com um piloto, não captar aporte grande no escuro.</p>
+
+  <div class="g4 mt">
+    <div class="card"><span class="pill ok">No ar</span><h3 style="margin-top:7px">App PF</h3>
+      <ul class="clean">
+        <li>Dashboard executivo</li>
+        <li>Lançamentos + máscaras R$</li>
+        <li>Orçamento 50/30/20</li>
+        <li>Dívidas (Neve / Avalanche)</li>
+        <li>Metas & Número da Liberdade</li>
+        <li>Projeção de caixa + 13º</li>
+      </ul>
+    </div>
+    <div class="card"><span class="pill ok">No ar</span><h3 style="margin-top:7px">WhatsApp + IA</h3>
+      <ul class="clean">
+        <li>Texto, foto de recibo, áudio</li>
+        <li>Confirmação antes de gravar</li>
+        <li>Número vinculado à conta</li>
+        <li>Extrato e dashboard atualizam</li>
+      </ul>
+    </div>
+    <div class="card"><span class="pill ok">No ar</span><h3 style="margin-top:7px">Crédito (bureau)</h3>
+      <ul class="clean">
+        <li>Score QUOD</li>
+        <li>SCR Bacen + Rating</li>
+        <li>PEFIN / REFIN / protestos</li>
+        <li>Dívida ativa PGFN</li>
+        <li>Import SCR → plano</li>
+        <li>CPF set-once (LGPD)</li>
+      </ul>
+    </div>
+    <div class="card"><span class="pill ok">No ar</span><h3 style="margin-top:7px">Aquisição</h3>
+      <ul class="clean">
+        <li>Funil /venda + calculadora</li>
+        <li>Checkout Stripe (cartão)</li>
+        <li>Drip 5 e-mails</li>
+        <li>Painel admin (leads/vendas)</li>
+        <li>Import CSV / OFX</li>
+        <li>Crédito avulso R$ 39,90</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="g3 mt">
+    <div class="card gold"><h3>Stack</h3><p>React 19 · FastAPI · MongoDB · Stripe · Twilio · Gemini · Direct Data · Resend</p></div>
+    <div class="card gold"><h3>Modelo ao cliente</h3><p>Pagamento único, acesso vitalício — sem mensalidade hoje.</p></div>
+    <div class="card gold"><h3>Honestidade</h3><p>Pix, white-label, PJ e alerta WhatsApp de orçamento = roadmap, não “já tem”.</p></div>
+  </div>
+  <div class="foot"><span>FinPremium · Investidores</span><span>1 / 3</span></div>
+</section>
+
+<!-- 2 · PRINT DO APP -->
+<section class="slide">
+  <div class="eyebrow">Slide 2 · Produto real</div>
+  <h2>O app que o investidor está financiando</h2>
+  <p class="lead" style="margin-bottom:10px">Print do painel em produção (conta admin). Mesma UI que o cliente usa após o checkout.</p>
+
+  <div class="g2" style="grid-template-columns:1.35fr .65fr;gap:14px;flex:1;min-height:0">
+    <div class="shot-wrap">
+      <img src="assets/app-dashboard.png" alt="Print do dashboard FinPremium" />
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card gold">
+        <h3>O que o print mostra</h3>
+        <ul class="clean">
+          <li>Dashboard com receita, gastos, sobra</li>
+          <li>Dívidas no plano + alerta de estouro</li>
+          <li>Fluxo de caixa e atalho à projeção</li>
+          <li>Módulos na sidebar — produto completo</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Diferenciais já utilizáveis</h3>
+        <ul class="clean">
+          <li>WhatsApp como porta de lançamento</li>
+          <li>Crédito bureau → import para o plano</li>
+          <li>Funil + Stripe + admin no mesmo stack</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>O que ainda falta provar</h3>
+        <p>Adesão de canal, retenção de uso e unit economics em volume — por isso o aporte grande vem <b>depois</b> do piloto.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>FinPremium · Investidores</span><span>2 / 3</span></div>
+</section>
+
+<!-- 3 · EMBARQUE NA VALIDAÇÃO -->
+<section class="slide">
+  <div class="eyebrow">Slide 3 · Como embarcar</div>
+  <h2>Validar primeiro. Aportar depois.</h2>
+  <p class="lead">Sem tração de canal, não pedimos R$ 100k+ no escuro. O investidor entra leve, mede, e só então escala o capital
+    contra participação na receita líquida do projeto.</p>
+
+  <div class="g3 mt">
+    <div class="card">
+      <span class="pill">Fase 1 · 30–45 dias</span>
+      <h3 style="margin-top:8px">Piloto de canal</h3>
+      <p style="margin-top:5px"><b>Entrada: R$ 0 a R$ 4.900</b> (setup/treino)</p>
+      <ul class="clean">
+        <li>Cupom + oferta App+Crédito (R$ 127)</li>
+        <li>Meta: ≥ 25% adesão nos atendidos</li>
+        <li>Medir WhatsApp vinculado e consultas</li>
+        <li>Share do cupom: 25–35% (sem equity)</li>
+      </ul>
+    </div>
+    <div class="card gold">
+      <span class="pill">Fase 2 · pós-prova</span>
+      <h3 style="margin-top:8px">Aporte Seed</h3>
+      <p style="margin-top:5px"><b>R$ 19.000 – 29.000 → 15–20%</b></p>
+      <ul class="clean">
+        <li>Só se o piloto bater a meta</li>
+        <li>% da receita líquida do projeto*</li>
+        <li>Rateio mensal com extrato</li>
+        <li>Prazo 36 meses, renovável</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="pill">Fase 3 · tração</span>
+      <h3 style="margin-top:8px">Crescimento / Escala</h3>
+      <p style="margin-top:5px"><b>R$ 49–79k → 25–30%</b> · depois <b>R$ 99k+ → 35–40%</b></p>
+      <ul class="clean">
+        <li>Amarrado a meta de volume (ex.: R$ 20k+/mês líquido)</li>
+        <li>Capital para ads, bureau e roadmap</li>
+        <li>Não é % da empresa-mãe</li>
+      </ul>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>O que o investidor financia</th><th>O que NÃO está na mesa agora</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="k">Validação de canal + participação na receita líquida do FinPremium</td>
+        <td>Equity do CNPJ · white-label · valuation por “concorrência”</td>
+      </tr>
+      <tr>
+        <td class="k">Uso do aporte: ops, créditos Direct Data, aquisição, roadmap (Pix/alertas)</td>
+        <td>Aporte grande sem prova de adesão</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="font-size:7.8pt;color:var(--muted);margin-top:8px">*Receita líquida = vendas Stripe (pacotes + crédito) − fees Stripe − Direct Data − hosting.
+    Próximo passo: demo ao vivo (30 min) + acordo de piloto.</p>
+  <div class="foot"><span>FinPremium · Proposta confidencial para investidores · 2026</span><span>3 / 3</span></div>
+</section>
+
+</body>
+</html>
