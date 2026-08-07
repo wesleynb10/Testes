@@ -69,8 +69,17 @@
   .shot-wrap{
     border-radius:12px;overflow:hidden;border:1px solid rgba(201,169,97,.28);
     box-shadow:0 18px 50px rgba(0,0,0,.45);background:#0b0a0f;height:100%;
+    position:relative;
   }
   .shot-wrap img{width:100%;height:100%;object-fit:cover;object-position:top left;display:block}
+  .shot-wrap .gif-live{display:block}
+  .shot-wrap .mosaic-print{display:none}
+  @media print{
+    .shot-wrap .gif-live{display:none}
+    .shot-wrap .mosaic-print{display:block}
+  }
+  .tab-chip{display:inline-block;font-size:7pt;font-weight:600;letter-spacing:.06em;
+    padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin:2px 3px 0 0}
   ul.clean{list-style:none;display:grid;gap:4px;margin-top:5px}
   ul.clean li{padding-left:14px;position:relative;font-size:8.6pt;line-height:1.35}
   ul.clean li::before{content:"›";position:absolute;left:0;color:var(--gold);font-weight:700}
@@ -138,37 +147,43 @@
   <div class="foot"><span>FinPremium · Investidores</span><span>1 / 3</span></div>
 </section>
 
-<!-- 2 · PRINT DO APP -->
+<!-- 2 · TOUR DO APP (GIF) -->
 <section class="slide">
   <div class="eyebrow">Slide 2 · Produto real</div>
-  <h2>O app que o investidor está financiando</h2>
-  <p class="lead" style="margin-bottom:10px">Print do painel em produção (conta admin). Mesma UI que o cliente usa após o checkout.</p>
+  <h2>Tour pelas abas do app</h2>
+  <p class="lead" style="margin-bottom:8px">Capturas reais em produção. No HTML o GIF passa por cada módulo; no PDF aparece o mosaico das 9 telas.</p>
 
-  <div class="g2" style="grid-template-columns:1.35fr .65fr;gap:14px;flex:1;min-height:0">
+  <div class="g2" style="grid-template-columns:1.4fr .6fr;gap:14px;flex:1;min-height:0">
     <div class="shot-wrap">
-      <img src="assets/app-dashboard.png" alt="Print do dashboard FinPremium" />
+      <img class="gif-live" src="assets/app-tour.gif" alt="Tour animado pelas abas do FinPremium" />
+      <img class="mosaic-print" src="assets/app-mosaic.png" alt="Mosaico das abas do FinPremium" />
     </div>
-    <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;flex-direction:column;gap:9px">
       <div class="card gold">
-        <h3>O que o print mostra</h3>
-        <ul class="clean">
-          <li>Dashboard com receita, gastos, sobra</li>
-          <li>Dívidas no plano + alerta de estouro</li>
-          <li>Fluxo de caixa e atalho à projeção</li>
-          <li>Módulos na sidebar — produto completo</li>
-        </ul>
+        <h3>9 módulos no tour</h3>
+        <div style="margin-top:6px">
+          <span class="tab-chip">Dashboard</span>
+          <span class="tab-chip">Lançamentos</span>
+          <span class="tab-chip">WhatsApp</span>
+          <span class="tab-chip">Orçamento</span>
+          <span class="tab-chip">Dívidas</span>
+          <span class="tab-chip">Metas</span>
+          <span class="tab-chip">Crédito</span>
+          <span class="tab-chip">Projeção</span>
+          <span class="tab-chip">Escopo</span>
+        </div>
       </div>
       <div class="card">
-        <h3>Diferenciais já utilizáveis</h3>
+        <h3>Como apresentar</h3>
         <ul class="clean">
-          <li>WhatsApp como porta de lançamento</li>
-          <li>Crédito bureau → import para o plano</li>
-          <li>Funil + Stripe + admin no mesmo stack</li>
+          <li>Abra o HTML no navegador — o GIF anima sozinho</li>
+          <li>~1,6s por aba, loop contínuo</li>
+          <li>PDF estático usa o mosaico 3×3</li>
         </ul>
       </div>
       <div class="card">
         <h3>O que ainda falta provar</h3>
-        <p>Adesão de canal, retenção de uso e unit economics em volume — por isso o aporte grande vem <b>depois</b> do piloto.</p>
+        <p>Adesão de canal e retenção em volume — aporte grande vem <b>depois</b> do piloto.</p>
       </div>
     </div>
   </div>
