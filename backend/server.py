@@ -1831,8 +1831,30 @@ async def admin_leads(current: dict = Depends(get_current_admin), limit: int = 2
 
 @api_router.get("/admin/transactions")
 async def admin_transactions(current: dict = Depends(get_current_admin), limit: int = 200):
+    """Vendas Stripe (payment_transactions) — não são os lançamentos do app/WhatsApp."""
     docs = await db.payment_transactions.find({}, {"_id": 0}).sort("created_at", -1).to_list(length=limit)
     return {"transactions": docs, "count": len(docs)}
+
+
+@api_router.get("/admin/lancamentos")
+async def admin_lancamentos(
+    current: dict = Depends(get_current_admin),
+    limit: int = 200,
+    source: Optional[str] = None,
+):
+    """Lançamentos financeiros do produto (app + WhatsApp), para o dono acompanhar o wedge."""
+    query: Dict[str, Any] = {}
+    if source == "whatsapp":
+        query["source"] = {"$regex": r"^whatsapp"}
+    elif source:
+        query["source"] = source
+    docs = (
+        await db.transactions.find(query, {"_id": 0})
+        .sort("created_at", -1)
+        .to_list(length=limit)
+    )
+    total = sum(float(d.get("amount") or 0) for d in docs)
+    return {"transactions": docs, "count": len(docs), "total": round(total, 2)}
 
 
 @api_router.get("/admin/drip")

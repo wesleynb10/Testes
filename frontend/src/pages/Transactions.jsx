@@ -343,6 +343,11 @@ export default function Transactions() {
                 <div className="min-w-0 flex-1">
                   <div className="text-[14px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{t.description}</div>
                   <div className="text-[11px] flex items-center gap-2 flex-wrap" style={{ color: "var(--text-muted)" }}>
+                    {String(t.source || "").startsWith("whatsapp") && (
+                      <span className="chip" style={{ color: "#7FB069", borderColor: "rgba(127,176,105,0.35)" }}>
+                        WhatsApp{t.source === "whatsapp_audio" ? " · áudio" : t.source === "whatsapp_image" ? " · foto" : ""}
+                      </span>
+                    )}
                     <span style={{ color: CAT_COLOR[t.category] || "var(--text-secondary)" }}>{t.category}</span>
                     <span>· {t.subcategory}</span>
                     {t.payment_method && <span>· {t.payment_method}</span>}

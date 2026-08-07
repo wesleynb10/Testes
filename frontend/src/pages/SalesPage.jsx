@@ -27,7 +27,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = `${(process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '')}/api`;
 
 const PAINS = [
   "Você chega no fim do mês e não sabe pra onde foi o dinheiro.",
