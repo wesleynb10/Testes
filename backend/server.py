@@ -613,7 +613,12 @@ async def set_cpf(payload: SetCpfRequest, current: dict = Depends(get_current_us
 
 @api_router.post("/auth/phone")
 async def set_phone(payload: SetPhoneRequest, current: dict = Depends(get_current_user)):
-    """Vincula (ou atualiza) o WhatsApp da conta para lançamentos via Twilio."""
+    """Vincula (ou atualiza) o WhatsApp da conta para lançamentos via Twilio.
+
+    Número é único no sistema. Se já estiver em outra conta:
+    - usuário comum → 409 (precisa liberar o número na outra conta);
+    - admin → assume o número e migra lançamentos WhatsApp dessa linha.
+    """
     phone = limpar_telefone(payload.phone or "")
     digits = "".join(ch for ch in phone if ch.isdigit())
     if not phone or len(digits) < 10:
@@ -628,9 +633,38 @@ async def set_phone(payload: SetPhoneRequest, current: dict = Depends(get_curren
         }
     )
     if other:
-        raise HTTPException(
-            status_code=409,
-            detail="Este WhatsApp já está vinculado a outra conta.",
+        if current.get("role") != "admin":
+            other_email = (other.get("email") or "outra conta").strip()
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Este WhatsApp já está vinculado a {other_email}. "
+                    "Entre nessa conta e troque/remova o número, ou use um WhatsApp diferente."
+                ),
+            )
+        # Admin reassume o número: libera a outra conta e traz os lançamentos WhatsApp.
+        await db.users.update_one(
+            {"id": other["id"]},
+            {"$unset": {"phone": "", "whatsapp": ""}},
+        )
+        await db.transactions.update_many(
+            {
+                "user_id": other["id"],
+                "phone": phone,
+                "source": {"$regex": r"^whatsapp"},
+            },
+            {
+                "$set": {
+                    "user_id": current["id"],
+                    "user_email": current.get("email"),
+                }
+            },
+        )
+        logger.info(
+            "WhatsApp %s reassumido por admin %s (antes: %s)",
+            phone,
+            current.get("email"),
+            other.get("email"),
         )
     await db.users.update_one(
         {"id": current["id"]},
