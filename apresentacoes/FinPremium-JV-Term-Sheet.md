@@ -28,10 +28,20 @@ Tese: infraestrutura proprietária pronta + escala sem gargalo técnico.
 
 ---
 
-## Seção 3 · Governança e escala
+## Seção 3 · Liderança Tech · Governança · Escala
+
+**Tese:** Growth foca em tráfego e aquisição. Tech garante infraestrutura e LTV/margem no back-end.
+
+### Wesley Batista — Head of Product & Estratégia Comercial
+- Economista · Senior Product Manager em operações de dados de altíssima escala (Mercado Livre)
+- Mandato: engenharia financeira do produto — pricing, comportamento, unit economics, upsell e retenção
+
+### Wallison — Head of Engineering & CTO
+- Arquitetura moderna e infra de alta performance (React 19, FastAPI, MongoDB)
+- Mandato: uptime em picos de lançamento/perpétuo · APIs críticas (Direct Data, Stripe, Gemini) · segurança
 
 - **IP:** código e marca sob licença da sociedade  
-- **Full-Time Tech:** quando a distribuição de lucros individual atingir **R$ 50.000 líquidos/mês** por **3 meses consecutivos**  
-- **Escala futura (aberta):** integração com emissor/parceiro de **cartão de crédito** — novo eixo de conversão, ticket e LTV, priorizado pelo comitê 50/50  
+- **Full-Time Tech:** distribuição individual **R$ 50.000 líquidos/mês** por **3 meses consecutivos**  
+- **Escala futura (aberta):** integração com emissor/parceiro de **cartão de crédito**
 
 **Próximo passo:** Demo → LOI → DD → Contrato + entrada R$ 20k → Go-live
