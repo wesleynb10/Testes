@@ -75,6 +75,36 @@ function cloneEmptyState() {
   return JSON.parse(JSON.stringify(emptyState));
 }
 
+const BUDGET_CATEGORIES = ["necessidades", "desejos", "investimentos"];
+
+/**
+ * O backend recalcula `actual` a partir dos lançamentos (app + WhatsApp) e
+ * devolve o estado materializado. Traz só esses valores para o estado local,
+ * preservando o que o usuário está editando (planned, nomes, ordem).
+ */
+function withServerActuals(local, server) {
+  if (!server?.budget) return local;
+  let changed = false;
+  const budget = { ...local.budget };
+  BUDGET_CATEGORIES.forEach((category) => {
+    const localItems = local.budget?.[category] || [];
+    const serverItems = server.budget?.[category] || [];
+    const serverById = new Map(serverItems.map((item) => [item.id, item]));
+    const merged = localItems.map((item) => {
+      const actual = serverById.get(item.id)?.actual;
+      if (actual === undefined || actual === item.actual) return item;
+      changed = true;
+      return { ...item, actual };
+    });
+    const extras = serverItems.filter(
+      (item) => !localItems.some((existing) => existing.id === item.id)
+    );
+    if (extras.length) changed = true;
+    budget[category] = merged.concat(extras);
+  });
+  return changed ? { ...local, budget } : local;
+}
+
 function createId(prefix) {
   const random =
     typeof crypto !== "undefined" && crypto.randomUUID
@@ -116,10 +146,12 @@ export function FinanceProvider({ children }) {
   const authenticatedUser = user && typeof user === "object" ? user : null;
   const authenticatedUserId = authenticatedUser?.id || null;
 
-  const refreshFinance = useCallback(async () => {
+  const refreshFinance = useCallback(async ({ silent = false } = {}) => {
     if (!authenticatedUserId) return null;
-    setLoading(true);
-    setError(null);
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [stateResponse, summaryResponse] = await Promise.all([
         api.get("/financial-state"),
@@ -139,10 +171,12 @@ export function FinanceProvider({ children }) {
       loadedUserRef.current = authenticatedUserId;
       return data.state;
     } catch (err) {
-      setError(err.response?.data?.detail || "Não foi possível carregar seus dados financeiros.");
+      if (!silent) {
+        setError(err.response?.data?.detail || "Não foi possível carregar seus dados financeiros.");
+      }
       throw err;
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [api, authenticatedUserId]);
 
@@ -167,6 +201,27 @@ export function FinanceProvider({ children }) {
     refreshFinance().catch(() => {});
   }, [user, authenticatedUserId, refreshFinance]);
 
+  // Lançamentos podem chegar por fora do app (WhatsApp). Sem isto o dashboard
+  // fica com os `actual` do momento do login e parece que nada entrou.
+  useEffect(() => {
+    if (!authenticatedUserId) return undefined;
+    const sync = () => {
+      if (saveTimerRef.current) return; // não atropela uma edição em andamento
+      refreshFinance({ silent: true }).catch(() => {});
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+    window.addEventListener("focus", sync);
+    document.addEventListener("visibilitychange", onVisible);
+    const poll = window.setInterval(sync, 15000);
+    return () => {
+      window.removeEventListener("focus", sync);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(poll);
+    };
+  }, [authenticatedUserId, refreshFinance]);
+
   useEffect(() => {
     if (!authenticatedUserId || loadedUserRef.current !== authenticatedUserId) return;
     if (skipNextSaveRef.current) {
@@ -181,9 +236,15 @@ export function FinanceProvider({ children }) {
       try {
         const { data } = await api.put("/financial-state", { state });
         setLastSavedAt(data.saved_at || new Date().toISOString());
+        setState((current) => {
+          const merged = withServerActuals(current, data.state);
+          if (merged !== current) skipNextSaveRef.current = true;
+          return merged;
+        });
       } catch (err) {
         setError(err.response?.data?.detail || "Não foi possível salvar as alterações.");
       } finally {
+        saveTimerRef.current = null;
         setSaving(false);
       }
     }, 650);

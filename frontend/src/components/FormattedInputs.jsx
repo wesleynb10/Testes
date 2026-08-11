@@ -58,16 +58,17 @@ function AffixWrap({ prefix, suffix, children }) {
 }
 
 function padClass(prefix, suffix, className = "") {
-  const suffixPad =
-    suffix && String(suffix).length > 2 ? "pr-16" : suffix ? "pr-11" : "";
-  return [
-    "input-premium font-mono-num",
-    prefix ? "pl-10" : "",
-    suffixPad,
-    className,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  return ["input-premium font-mono-num", className].filter(Boolean).join(" ");
+}
+
+// `.input-premium` usa `padding` (shorthand) no CSS, que vence as utilities
+// pl-*/pr-* do Tailwind — o texto digitado ficava por cima do "R$"/"%".
+// Inline style garante o espaço reservado para o afixo.
+function padStyle(prefix, suffix, style) {
+  const next = { ...style };
+  if (prefix) next.paddingLeft = `${12 + String(prefix).length * 9 + 6}px`;
+  if (suffix) next.paddingRight = `${12 + String(suffix).length * 9 + 6}px`;
+  return next;
 }
 
 /** Dinheiro: exibe 10.000 / 10.000,50 · prefixo R$ */
@@ -78,6 +79,7 @@ export const MoneyInput = forwardRef(function MoneyInput(
     onValueChange,
     prefix = "R$",
     className = "",
+    style,
     ...rest
   },
   ref
@@ -90,6 +92,7 @@ export const MoneyInput = forwardRef(function MoneyInput(
         ref={ref}
         inputMode="decimal"
         className={padClass(prefix, null, className)}
+        style={padStyle(prefix, null, style)}
         value={mask.text}
         onFocus={mask.onFocus}
         onBlur={() => {
@@ -115,6 +118,7 @@ export function PctInput({
   onValueChange,
   suffix = "%",
   className = "",
+  style,
   ...rest
 }) {
   const mask = useMaskedValue(value, formatPctInput);
@@ -124,6 +128,7 @@ export function PctInput({
         {...rest}
         inputMode="decimal"
         className={padClass(null, suffix, className)}
+        style={padStyle(null, suffix, style)}
         value={mask.text}
         onFocus={mask.onFocus}
         onBlur={() => {
@@ -149,6 +154,7 @@ export function IntInput({
   onValueChange,
   suffix,
   className = "",
+  style,
   ...rest
 }) {
   const mask = useMaskedValue(value, formatIntInput);
@@ -158,6 +164,7 @@ export function IntInput({
         {...rest}
         inputMode="numeric"
         className={padClass(null, suffix, className)}
+        style={padStyle(null, suffix, style)}
         value={mask.text}
         onFocus={mask.onFocus}
         onBlur={() => {

@@ -52,6 +52,54 @@ def test_set_phone_conflito_com_outra_conta():
     _register("phone.c@test.local")
     r = client.post("/api/auth/phone", json={"phone": "+5585999000001"})
     assert r.status_code == 409
+    assert "já está vinculado" in r.json()["detail"]
+
+
+def test_admin_reassume_whatsapp_e_migra_lancamentos():
+    """Admin pode recuperar número preso em outra conta e herda txs WhatsApp."""
+    import asyncio
+    import uuid
+
+    from server import db
+
+    other = _register("phone.stuck@test.local", phone="+5585999000099")
+    client.post("/api/auth/logout")
+    claimer = _register("phone.admin.claim@test.local")
+    tx_id = f"tx-wa-{uuid.uuid4().hex[:8]}"
+
+    async def _seed():
+        await db.users.update_one({"id": claimer["id"]}, {"$set": {"role": "admin"}})
+        await db.transactions.insert_one(
+            {
+                "id": tx_id,
+                "user_id": other["id"],
+                "user_email": other["email"],
+                "phone": "+5585999000099",
+                "source": "whatsapp",
+                "amount": 10.0,
+                "description": "Teste",
+                "category": "desejos",
+            }
+        )
+
+    asyncio.run(_seed())
+    # Refresh session user role via re-login
+    client.post("/api/auth/logout")
+    r = client.post(
+        "/api/auth/login",
+        json={"email": "phone.admin.claim@test.local", "password": "SenhaForte1"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["role"] == "admin"
+
+    r = client.post("/api/auth/phone", json={"phone": "+5585999000099"})
+    assert r.status_code == 200, r.text
+    assert r.json()["phone"] == "+5585999000099"
+
+    txs = client.get("/api/transactions")
+    assert txs.status_code == 200
+    items = txs.json().get("transactions") or []
+    assert any(t.get("id") == tx_id and t.get("amount") == 10.0 for t in items)
 
 
 def test_set_phone_invalido():

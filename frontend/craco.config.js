@@ -31,6 +31,8 @@ function makeDevServerV5Compatible(devServerConfig) {
     ...compatibleConfig.headers,
     "Cross-Origin-Resource-Policy": "same-origin",
   };
+  // webpack-dev-server v5 rejects empty allowedHosts entries (can appear with proxy/env).
+  compatibleConfig.allowedHosts = "all";
 
   if (onBeforeSetupMiddleware || setupMiddlewares) {
     compatibleConfig.setupMiddlewares = (middlewares, devServer) => {

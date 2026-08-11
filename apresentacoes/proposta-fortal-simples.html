@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>FinPremium · Proposta comercial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --void:#0b0a0f; --ink:#131218; --line:rgba(255,255,255,.09);
+    --gold:#c9a961; --gold-bright:#e8ce87; --gold-deep:#8b7a3e;
+    --text:#f4f1ea; --text-2:#b6b1a6; --muted:#7d786e;
+    --ok:#7fb069; --danger:#d46a6a; --blue:#7a9ab8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  @page{ size:330mm 186mm; margin:0 }
+  html,body{
+    background:#05040a;color:var(--text);font-family:Manrope,system-ui,sans-serif;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    width:330mm;margin:0;padding:0;
+  }
+
+  .slide{
+    position:relative;width:330mm;height:186mm;min-height:186mm;max-height:186mm;
+    padding:15mm 17mm 12mm;
+    display:flex;flex-direction:column;overflow:hidden;
+    background:
+      radial-gradient(900px 480px at 8% -12%, rgba(201,169,97,.16), transparent 58%),
+      radial-gradient(760px 420px at 104% 4%, rgba(122,154,184,.10), transparent 52%),
+      linear-gradient(158deg,#0b0a0f 0%,#141219 56%,#0a0910 100%);
+    page-break-after:always;break-after:page;
+    page-break-inside:avoid;break-inside:avoid;
+  }
+  .slide:last-child{page-break-after:auto;break-after:auto}
+  .slide::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:radial-gradient(rgba(255,255,255,.025) 1px,transparent 1px);background-size:3px 3px}
+
+  .eyebrow{font-size:9.5pt;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:7px}
+  h1{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:38pt;line-height:1.05;letter-spacing:-.02em;max-width:22ch}
+  h2{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:25pt;line-height:1.1;letter-spacing:-.02em;margin-bottom:6px}
+  h3{font-size:11.5pt;font-weight:700;color:var(--text);margin-bottom:4px}
+  p,li{color:var(--text-2);font-size:10pt;line-height:1.5}
+  .lead{color:#ded9cf;font-size:11.5pt;line-height:1.5;max-width:96ch;margin-top:8px}
+  .num{position:absolute;right:17mm;top:14mm;font-family:Fraunces,serif;font-size:30pt;color:rgba(201,169,97,.24);letter-spacing:.12em}
+
+  .foot{margin-top:auto;padding-top:9px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;color:var(--muted);font-size:8.5pt;letter-spacing:.04em}
+
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
+  .mt{margin-top:14px}
+  .mt-s{margin-top:9px}
+
+  .card{background:rgba(255,255,255,.032);border:1px solid var(--line);border-radius:13px;padding:13px 14px}
+  .card.gold{background:linear-gradient(150deg,rgba(201,169,97,.11),rgba(201,169,97,.025));border-color:rgba(201,169,97,.34)}
+  .card p{font-size:9.3pt;line-height:1.45}
+  .ico{font-size:12pt;color:var(--gold-bright);margin-bottom:5px;display:block}
+
+  .metric{background:rgba(255,255,255,.032);border:1px solid var(--line);border-radius:13px;padding:12px 14px}
+  .metric .n{font-family:Fraunces,serif;font-size:24pt;line-height:1;color:var(--gold-bright)}
+  .metric .n.sm{font-size:18pt}
+  .metric .l{margin-top:5px;font-size:8.6pt;color:var(--muted);line-height:1.35}
+
+  table{width:100%;border-collapse:collapse;margin-top:11px;font-size:9.3pt}
+  th{text-align:left;font-size:8pt;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);
+     font-weight:700;padding:7px 9px;border-bottom:1px solid rgba(201,169,97,.3)}
+  td{padding:7px 9px;border-bottom:1px solid var(--line);color:var(--text-2)}
+  td.k{color:var(--text);font-weight:600}
+  td.c{text-align:center}
+  td.r{text-align:right}
+  .yes{color:var(--ok);font-weight:700}
+  .no{color:var(--muted)}
+
+  ul.clean{list-style:none;display:grid;gap:6px;margin-top:8px}
+  ul.clean li{padding-left:16px;position:relative;font-size:9.3pt;line-height:1.45}
+  ul.clean li::before{content:"›";position:absolute;left:0;color:var(--gold);font-weight:700}
+  ul.x li::before{content:"×";color:var(--danger)}
+  ul.v li::before{content:"✓";color:var(--ok)}
+
+  .pill{display:inline-block;font-size:7.6pt;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+    padding:3px 9px;border-radius:999px;background:rgba(201,169,97,.14);color:var(--gold-bright);
+    border:1px solid rgba(201,169,97,.3)}
+  .pill.new{background:rgba(127,176,105,.14);color:var(--ok);border-color:rgba(127,176,105,.34)}
+  .pill.blue{background:rgba(122,154,184,.14);color:var(--blue);border-color:rgba(122,154,184,.3)}
+
+  .flow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:14px}
+  .flow .st{background:rgba(255,255,255,.032);border:1px solid var(--line);border-radius:12px;padding:11px 12px;position:relative}
+  .flow .st .i{font-family:Fraunces,serif;font-size:14pt;color:var(--gold-deep);line-height:1}
+  .flow .st h3{margin-top:5px;font-size:10.5pt}
+  .flow .st p{font-size:8.7pt;margin-top:3px}
+
+  .quote{margin-top:auto;background:linear-gradient(150deg,rgba(201,169,97,.13),rgba(201,169,97,.03));
+    border:1px solid rgba(201,169,97,.32);border-radius:15px;padding:15px 18px}
+  .quote .t{font-family:Fraunces,serif;font-size:15pt;line-height:1.28;color:var(--gold-bright)}
+  .quote p{margin-top:5px;font-size:9.3pt}
+
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:9.3pt}
+  .kv:last-child{border-bottom:none}
+  .kv .k{color:var(--text-2)} .kv .v{color:var(--text);font-weight:600;white-space:nowrap}
+
+  .cover-brand{display:flex;align-items:center;gap:11px}
+  .cover-brand .mark{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(140deg,var(--gold-bright),var(--gold-deep));color:#0b0a0f;font-family:Fraunces,serif;font-size:17pt;font-weight:700}
+  .cover-brand .nm{font-family:Fraunces,serif;font-size:16pt;letter-spacing:.01em}
+  .cover-brand .sub{font-size:7.6pt;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-top:1px}
+</style>
+</head>
+<body>
+
+<!-- 1 · CAPA -->
+<section class="slide">
+  <div class="cover-brand">
+    <div class="mark">F</div>
+    <div><div class="nm">FinPremium</div><div class="sub">Gestão financeira premium</div></div>
+  </div>
+  <div style="margin-top:auto">
+    <div class="eyebrow">Proposta comercial · produto em produção</div>
+    <h1>Aporte inicial.<br/>Participação no projeto.</h1>
+    <p class="lead" style="max-width:78ch">Documento baseado na versão atual do FinPremium. Escopo real do produto +
+      modelo de negócio sugerido: capital de entrada em troca de participação na receita do projeto.</p>
+  </div>
+  <div class="g4 mt" style="margin-top:22px">
+    <div><div class="eyebrow" style="margin-bottom:3px">Produto</div><p style="color:var(--text)">FinPremium (marca atual)</p></div>
+    <div><div class="eyebrow" style="margin-bottom:3px">Modelo ao cliente</div><p style="color:var(--text)">Pagamento único · vitalício</p></div>
+    <div><div class="eyebrow" style="margin-bottom:3px">Modelo ao parceiro</div><p style="color:var(--text)">Aporte + % da receita</p></div>
+    <div><div class="eyebrow" style="margin-bottom:3px">Status</div><p style="color:var(--ok)">Em produção · demo ao vivo</p></div>
+  </div>
+  <div class="foot"><span>FinPremium · Proposta comercial</span><span>Confidencial — 2026</span></div>
+</section>
+
+<!-- 2 · O QUE É -->
+<section class="slide">
+  <div class="num">01</div>
+  <div class="eyebrow">Produto atual</div>
+  <h2>Organização financeira com WhatsApp e crédito</h2>
+  <p class="lead">O FinPremium já está no ar: o cliente compra acesso vitalício, organiza a vida financeira no app e
+    lança gastos pelo WhatsApp. A Análise de Crédito (bureau real) é o gancho — e o relatório vira plano de quitação.</p>
+
+  <div class="g4 mt">
+    <div class="metric"><div class="n sm">App</div><div class="l">Dashboard, lançamentos, orçamento 50/30/20, dívidas, metas, projeção</div></div>
+    <div class="metric"><div class="n sm">WhatsApp</div><div class="l">Texto, foto de recibo e áudio com IA + confirmação antes de gravar</div></div>
+    <div class="metric"><div class="n sm">Crédito</div><div class="l">Score, SCR, PEFIN/REFIN e PGFN via Direct Data</div></div>
+    <div class="metric"><div class="n sm">Funil</div><div class="l">Landing, calculadora, drip de e-mail, Stripe e painel admin</div></div>
+  </div>
+
+  <div class="g2 mt">
+    <div class="card gold"><h3>Como o cliente paga hoje</h3>
+      <p>Pagamento único no Stripe (cartão). Três pacotes: <b>R$ 47 / R$ 97 / R$ 297</b>, com consultas de crédito inclusas.
+        Não há mensalidade — acesso vitalício à plataforma.</p></div>
+    <div class="card"><h3>O que este documento faz</h3>
+      <p>Mostra o produto real e sugere formatos de parceria com valores de referência. Ajuste fino na reunião, com volume
+        e ticket do parceiro.</p></div>
+  </div>
+  <div class="foot"><span>FinPremium · Produto atual</span><span>2</span></div>
+</section>
+
+<!-- 3 · MÓDULOS -->
+<section class="slide">
+  <div class="num">02</div>
+  <div class="eyebrow">Escopo do app</div>
+  <h2>O que o cliente usa hoje</h2>
+  <p class="lead">Módulos implementados na marca FinPremium. Tudo abaixo está no código e pode ser demonstrado ao vivo.</p>
+
+  <div class="g3 mt">
+    <div class="card"><span class="ico">▤</span><h3>Dashboard</h3>
+      <p>Receita, gastos, investido e saldo; gráficos; alertas de estouro no app; atualização automática após WhatsApp.</p></div>
+    <div class="card"><span class="ico">▦</span><h3>Lançamentos</h3>
+      <p>Manual + WhatsApp no mesmo extrato; máscaras R$; edição; subcategorias; forma de pagamento.</p></div>
+    <div class="card"><span class="ico">◑</span><h3>Orçamento 50/30/20</h3>
+      <p>Necessidades, Desejos e Investimentos com regra ajustável e realizado calculado do extrato.</p></div>
+    <div class="card"><span class="ico">❄</span><h3>Dívidas</h3>
+      <p>Bola de Neve e Avalanche: data de quitação, juros evitados e aporte extra.</p></div>
+    <div class="card"><span class="ico">◈</span><h3>Projeção de caixa</h3>
+      <p>13º automático (1ª/2ª parcela), eventos recorrentes/pontuais e saldo mês a mês.</p></div>
+    <div class="card"><span class="ico">★</span><h3>Metas & Liberdade</h3>
+      <p>Metas longas + Número da Liberdade (regra dos 4%) com teste de aporte.</p></div>
+    <div class="card"><span class="ico">◇</span><h3>Análise de Crédito</h3>
+      <p>Consulta PF (CPF do titular); Score, SCR, negativações e dívida ativa; import para o plano.</p></div>
+    <div class="card"><span class="ico">✆</span><h3>WhatsApp</h3>
+      <p>Vínculo do número na conta; lançar por texto, foto e áudio; admin pode reassumir número preso.</p></div>
+    <div class="card"><span class="ico">⇪</span><h3>Funil & admin</h3>
+      <p>Landing, calculadora, bônus, drip 5 e-mails, checkout Stripe, painel de leads/vendas.</p></div>
+  </div>
+
+  <p class="mt-s" style="font-size:8.8pt;color:var(--muted)">Stack: React 19 + FastAPI + MongoDB · Stripe · Twilio WhatsApp ·
+    Gemini 2.5 Flash · Resend · Direct Data · JWT em cookie httpOnly.</p>
+  <div class="foot"><span>FinPremium · Escopo do app</span><span>3</span></div>
+</section>
+
+<!-- 4 · WHATSAPP -->
+<section class="slide">
+  <div class="num">03</div>
+  <div class="eyebrow">WhatsApp com IA</div>
+  <h2>Lançar gasto sem abrir o app</h2>
+  <p class="lead">O cliente vincula o número em Conta → WhatsApp. Depois manda texto, foto do recibo ou áudio; a IA
+    interpreta e pede confirmação antes de gravar no extrato.</p>
+
+  <div class="g3 mt">
+    <div class="card"><span class="ico">✎</span><h3>Texto</h3>
+      <p>“Almoço R$ 42,50 no Pix” → categoria sugerida. Se faltar forma de pagamento, o bot pergunta.</p></div>
+    <div class="card"><span class="ico">📷</span><h3>Foto</h3>
+      <p>Cupom ou nota: visão lê valor e estabelecimento e sugere a categoria.</p></div>
+    <div class="card"><span class="ico">🎙</span><h3>Áudio</h3>
+      <p>Fala informal é transcrita e interpretada antes da confirmação.</p></div>
+  </div>
+
+  <div class="g2 mt">
+    <div class="card">
+      <h3>Fluxo real</h3>
+      <div class="kv"><span class="k">Cliente</span><span class="v">Almoço R$ 42,50</span></div>
+      <div class="kv"><span class="k">App</span><span class="v">Qual a forma de pagamento?</span></div>
+      <div class="kv"><span class="k">Cliente</span><span class="v">Pix</span></div>
+      <div class="kv"><span class="k">App</span><span class="v">Confirmar? SIM / NÃO</span></div>
+      <div class="kv"><span class="k">Resultado</span><span class="v" style="color:var(--ok)">No extrato + dashboard</span></div>
+    </div>
+    <div class="card gold">
+      <h3>O que já está pronto</h3>
+      <ul class="clean v" style="margin-top:8px">
+        <li>Vínculo do número na própria conta.</li>
+        <li>Admin pode reassumir número preso em outra conta.</li>
+        <li>Lançamentos e dashboard atualizam sozinhos após o WhatsApp.</li>
+        <li>Alertas de orçamento hoje aparecem no app (push WhatsApp é roadmap).</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>FinPremium · WhatsApp</span><span>4</span></div>
+</section>
+
+<!-- 5 · CRÉDITO -->
+<section class="slide">
+  <div class="num">04</div>
+  <div class="eyebrow">Análise de Crédito</div>
+  <h2>Bureau real, CPF do titular</h2>
+  <p class="lead">Consulta só do CPF vinculado à conta (set-once, cifrado). Quatro fontes Direct Data — o cliente escolhe
+    quais ativar; o preço recalcula. CNPJ/PJ ainda não está productizado na conta.</p>
+
+  <table>
+    <thead><tr><th>Fonte</th><th>Entrega</th><th class="r">Custo bureau</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Score QUOD</td><td>Pontuação, faixa, motivos</td><td class="r">R$ 1,98</td></tr>
+      <tr><td class="k">SCR Bacen</td><td>Dívidas por instituição + Rating AA–H</td><td class="r">R$ 4,90</td></tr>
+      <tr><td class="k">Negativações QUOD</td><td>PEFIN/REFIN, protestos, ações</td><td class="r">R$ 2,38</td></tr>
+      <tr><td class="k">Dívida ativa (PGFN)</td><td>Receita Federal — fora do SCR</td><td class="r">R$ 0,36</td></tr>
+      <tr><td class="k" style="color:var(--gold-bright)">Pacote completo</td><td>Relatório único + PDF</td><td class="r" style="color:var(--gold-bright);font-weight:700">≈ R$ 9,62</td></tr>
+    </tbody>
+  </table>
+
+  <div class="g3 mt">
+    <div class="card"><h3>Preço avulso hoje</h3><p><b>R$ 39,90</b> no Stripe (ou grátis se ainda houver consulta inclusa do plano).</p></div>
+    <div class="card"><h3>Inclusas nos planos</h3><p>Starter 1 · Completo 3 · Plus 12 consultas — cada uma consome 1 crédito.</p></div>
+    <div class="card"><h3>Import SCR</h3><p>Um clique leva modalidades com saldo para Dívidas, Orçamento e Projeção (idempotente).</p></div>
+  </div>
+  <div class="foot"><span>FinPremium · Análise de Crédito</span><span>5</span></div>
+</section>
+
+<!-- 6 · JORNADA -->
+<section class="slide">
+  <div class="num">05</div>
+  <div class="eyebrow">Jornada do cliente</div>
+  <h2>Do lead ao hábito no app</h2>
+
+  <div class="flow">
+    <div class="st"><div class="i">1</div><h3>Funil</h3><p>Landing, calculadora ou WhatsApp — lead escolhe o canal.</p></div>
+    <div class="st"><div class="i">2</div><h3>Compra</h3><p>Checkout Stripe · pacote vitalício com consultas inclusas.</p></div>
+    <div class="st"><div class="i">3</div><h3>Onboarding</h3><p>3 passos + checklist da 1ª semana.</p></div>
+    <div class="st"><div class="i">4</div><h3>Crédito</h3><p>Consulta o próprio CPF e importa o SCR.</p></div>
+    <div class="st"><div class="i">5</div><h3>Uso diário</h3><p>WhatsApp + orçamento + projeção mantêm o hábito.</p></div>
+  </div>
+
+  <div class="g3 mt">
+    <div class="card"><span class="ico">◷</span><h3>Funil pronto</h3>
+      <p>`/`, `/venda`, `/calculadora`, `/bonus`, `/obrigado` + drip em 1/3/5/9/14 dias.</p></div>
+    <div class="card"><span class="ico">▦</span><h3>Painel admin</h3>
+      <p>Leads, vendas Stripe, fila de drip e visão operacional — login separado.</p></div>
+    <div class="card"><span class="ico">⇪</span><h3>Import de extrato</h3>
+      <p>CSV e OFX/QIF/QFX com auto-categorização por estabelecimento.</p></div>
+  </div>
+
+  <div class="quote">
+    <div class="t">O produto já vende sozinho — a parceria escala o canal.</div>
+    <p>Vocês trazem volume e confiança; o FinPremium entrega a retenção e a segunda venda (crédito + plano).</p>
+  </div>
+  <div class="foot"><span>FinPremium · Jornada</span><span>6</span></div>
+</section>
+
+<!-- 7 · PREÇOS ATUAIS -->
+<section class="slide">
+  <div class="num">06</div>
+  <div class="eyebrow">Tabela atual do app</div>
+  <h2>O que já está à venda</h2>
+  <p class="lead">Preços vivos no checkout Stripe hoje. Pagamento único, acesso vitalício, consultas de crédito inclusas.</p>
+
+  <table>
+    <thead>
+      <tr><th>Pacote</th><th>Preço</th><th>Consultas crédito</th><th>Inclui</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="k">FinPremium Starter</td>
+        <td class="r">R$ 47</td>
+        <td class="c">1</td>
+        <td>Planilha + 3 bônus · fontes à escolha</td>
+      </tr>
+      <tr>
+        <td class="k">FinPremium Completo</td>
+        <td class="r" style="color:var(--gold-bright);font-weight:700">R$ 97</td>
+        <td class="c">3</td>
+        <td>Plataforma vitalícia + 6 bônus + comunidade</td>
+      </tr>
+      <tr>
+        <td class="k">FinPremium Plus + Mentoria</td>
+        <td class="r">R$ 297</td>
+        <td class="c">12</td>
+        <td>Tudo do Completo + mentoria + suporte prioritário</td>
+      </tr>
+      <tr>
+        <td class="k">Análise de Crédito avulsa</td>
+        <td class="r">R$ 39,90</td>
+        <td class="c">1 relatório</td>
+        <td>Score + SCR + PEFIN + PGFN (ou subset)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="g3 mt">
+    <div class="card gold"><h3>Margem de crédito (ref.)</h3>
+      <p>Custo bureau ≈ R$ 9,62 · venda R$ 39,90 → margem bruta ~R$ 30 por relatório completo.</p></div>
+    <div class="card"><h3>Sem mensalidade</h3>
+      <p>FAQ e checkout deixam claro: pagamento único, atualizações inclusas, sem renovação.</p></div>
+    <div class="card"><h3>Upsell natural</h3>
+      <p>Quem esgota as consultas inclusas compra avulso — ou sobe de pacote na próxima oferta.</p></div>
+  </div>
+  <div class="foot"><span>FinPremium · Tabela atual</span><span>7</span></div>
+</section>
+
+<!-- 8 · MODELO PRINCIPAL: APORTE + PARTICIPAÇÃO -->
+<section class="slide">
+  <div class="num">07</div>
+  <div class="eyebrow">Modelo de negócio proposto</div>
+  <h2>Aporte inicial + participação no projeto</h2>
+  <p class="lead">Você entra com capital e canal; nós com o produto já no ar. Em troca do aporte, recebe um percentual
+    da <b>receita líquida do FinPremium</b> (pacotes + crédito avulso − taxas Stripe − custo Direct Data − infra).
+    Valores de referência para discussão — não são contrato.</p>
+
+  <table>
+    <thead>
+      <tr><th>Faixa</th><th class="r">Aporte</th><th class="c">Participação</th><th>O que o aporte compra</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="k">Seed</td>
+        <td class="r">R$ 49.000</td>
+        <td class="c" style="color:var(--gold-bright);font-weight:700">15%</td>
+        <td>Cupom de canal · relatório financeiro mensal · voz no roadmap comercial</td>
+      </tr>
+      <tr>
+        <td class="k" style="color:var(--gold-bright)">Crescimento · sugerido</td>
+        <td class="r" style="color:var(--gold-bright);font-weight:700">R$ 99.000</td>
+        <td class="c" style="color:var(--gold-bright);font-weight:700">25%</td>
+        <td>Tudo do Seed + comitê mensal + prioridade de canal por 12 meses</td>
+      </tr>
+      <tr>
+        <td class="k">Escala</td>
+        <td class="r">R$ 198.000</td>
+        <td class="c" style="color:var(--gold-bright);font-weight:700">40%</td>
+        <td>Tudo do Crescimento + exclusividade regional 18 meses + veto leve em preço de canal</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="g3 mt">
+    <div class="card gold"><h3>Base de rateio</h3>
+      <p>Receita líquida do projeto = vendas Stripe (pacotes + crédito) −  Stripe fees − Direct Data − hosting.
+        Rateio mensal, com extrato.</p></div>
+    <div class="card"><h3>Duração</h3>
+      <p>Participação por <b>36 meses</b>, renovável. Após o prazo, renegocia ou converte em % residual menor (ex.: metade).</p></div>
+    <div class="card"><h3>Não é white-label</h3>
+      <p>Marca continua FinPremium. Aporte financia operação e roadmap; participação é no caixa do projeto, não na empresa-mãe genérica.</p></div>
+  </div>
+  <div class="foot"><span>FinPremium · Aporte + participação</span><span>8</span></div>
+</section>
+
+<!-- 8b · USO DO APORTE + RETORNO -->
+<section class="slide">
+  <div class="num">08</div>
+  <div class="eyebrow">Para onde vai o dinheiro</div>
+  <h2>Uso do aporte · retorno esperado</h2>
+  <p class="lead">Exemplo na faixa sugerida (<b>R$ 99.000 · 25%</b>). O aporte não é taxa de setup — é capital de giro
+    do projeto, com participação no resultado.</p>
+
+  <div class="g2 mt" style="grid-template-columns:1.05fr .95fr">
+    <div>
+      <table style="margin-top:0">
+        <thead><tr><th>Uso do aporte (R$ 99 mil)</th><th class="r">Valor</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Runway ops 6 meses (Twilio, Gemini, hosting, Stripe)</td><td class="r">R$ 24.000</td></tr>
+          <tr><td class="k">Créditos Direct Data (estoque inicial)</td><td class="r">R$ 18.000</td></tr>
+          <tr><td class="k">Aquisição / conteúdo / funil do canal</td><td class="r">R$ 30.000</td></tr>
+          <tr><td class="k">Roadmap (Pix, alertas WhatsApp, melhorias)</td><td class="r">R$ 20.000</td></tr>
+          <tr><td class="k">Reserva / imprevistos</td><td class="r">R$ 7.000</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:grid;gap:10px;align-content:start">
+      <div class="card gold">
+        <h3>Cenário base (mês 6–12)</h3>
+        <ul class="clean" style="margin-top:6px">
+          <li>200 pacotes Completo/mês × R$ 97 → GMV R$ 19.400</li>
+          <li>+ 80 créditos avulsos × R$ 39,90 → R$ 3.192</li>
+          <li>Receita líquida estimada ≈ <b>R$ 16.000/mês</b></li>
+          <li>Sua fatia 25% ≈ <b>R$ 4.000/mês</b></li>
+        </ul>
+      </div>
+      <div class="metric"><div class="n sm">~25 meses</div><div class="l">Payback do aporte no cenário base (sem contar valor do canal próprio)</div></div>
+    </div>
+  </div>
+
+  <div class="quote">
+    <div class="t">Quanto mais o canal performa, mais rápido o aporte se paga.</div>
+    <p>No cenário forte (400 Completo/mês), a fatia de 25% passa de R$ 8 mil/mês — payback &lt; 12 meses.</p>
+  </div>
+  <div class="foot"><span>FinPremium · Uso do aporte</span><span>9</span></div>
+</section>
+
+<!-- 8c · ALTERNATIVAS LEVES -->
+<section class="slide">
+  <div class="num">09</div>
+  <div class="eyebrow">Se não quiser aportar</div>
+  <h2>Alternativas sem participação</h2>
+  <p class="lead">Para quem prefere só canal, sem entrar no risco/upside do projeto. Menor compromisso, menor share.</p>
+
+  <div class="g3 mt">
+    <div class="card">
+      <span class="pill blue">Alternativa 1</span>
+      <h3 style="margin-top:8px">Indicação</h3>
+      <p style="color:var(--gold-bright);font-size:9pt;margin-bottom:6px">Entrada R$ 0</p>
+      <ul class="clean" style="margin-top:6px">
+        <li><b>25%</b> sobre pacotes do cupom</li>
+        <li><b>R$ 8</b> por consulta avulsa</li>
+        <li>Sem participação no projeto</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="pill blue">Alternativa 2</span>
+      <h3 style="margin-top:8px">Canal + setup</h3>
+      <p style="color:var(--gold-bright);font-size:9pt;margin-bottom:6px">Setup R$ 4.900</p>
+      <ul class="clean" style="margin-top:6px">
+        <li><b>35%</b> sobre pacotes do cupom</li>
+        <li><b>R$ 12</b> por consulta avulsa</li>
+        <li>Treino + material + link rastreado</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="pill blue">Alternativa 3</span>
+      <h3 style="margin-top:8px">Lote de acessos</h3>
+      <p style="color:var(--gold-bright);font-size:9pt;margin-bottom:6px">Compra antecipada</p>
+      <ul class="clean" style="margin-top:6px">
+        <li>100 Completo: <b>R$ 4.900</b></li>
+        <li>300: <b>R$ 12.900</b> · 1.000: <b>R$ 34.900</b></li>
+        <li>Parceiro embute no próprio ticket</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="quote">
+    <div class="t">Aporte + participação é o modelo alinhado a longo prazo.</div>
+    <p>As alternativas servem para testar o canal em 30–60 dias antes de decidir o aporte.</p>
+  </div>
+  <div class="foot"><span>FinPremium · Alternativas</span><span>10</span></div>
+</section>
+
+<!-- 9 · PREÇO SUGERIDO AO CLIENTE FINAL -->
+<section class="slide">
+  <div class="num">10</div>
+  <div class="eyebrow">Oferta ao cliente final</div>
+  <h2>Como embutir no pós-serviço</h2>
+  <p class="lead">Sugestão de packaging para oferecer o FinPremium logo após limpar o nome — sem mudar o modelo vitalício
+    do app. A receita dessas vendas entra na base de rateio da participação.</p>
+
+  <div class="g3 mt">
+    <div class="card">
+      <span class="pill blue">Entrada</span>
+      <h3 style="margin-top:8px">App Essencial</h3>
+      <p style="font-family:Fraunces,serif;font-size:22pt;color:var(--gold-bright);margin:6px 0">R$ 67</p>
+      <p>Acesso Completo + 1 consulta. Upsell leve no fechamento do serviço.</p>
+    </div>
+    <div class="card gold">
+      <span class="pill">Hero · sugerido</span>
+      <h3 style="margin-top:8px">App + Crédito</h3>
+      <p style="font-family:Fraunces,serif;font-size:22pt;color:var(--gold-bright);margin:6px 0">R$ 127</p>
+      <p>Pacote Completo (R$ 97) + 1 relatório completo já rodado no dia. Cliente sai com plano de quitação.</p>
+    </div>
+    <div class="card">
+      <span class="pill blue">Premium</span>
+      <h3 style="margin-top:8px">App + Mentoria</h3>
+      <p style="font-family:Fraunces,serif;font-size:22pt;color:var(--gold-bright);margin:6px 0">R$ 297</p>
+      <p>Plus atual: 12 consultas + mentoria. Para quem quer acompanhamento.</p>
+    </div>
+  </div>
+
+  <div class="g2 mt">
+    <div class="card"><h3>Bundle no ticket do limpa-nome</h3>
+      <p>Ex.: serviço R$ X + App+Crédito R$ 127 no mesmo fechamento. O cliente vê um pacote; o rateio do aporte
+        captura a parte FinPremium.</p></div>
+    <div class="card"><h3>Só crédito como isca</h3>
+      <p>Oferecer a consulta R$ 39,90 (ou cortesia 1×) e converter para o pacote Completo na tela do relatório —
+        quando a dor está clara.</p></div>
+  </div>
+  <div class="foot"><span>FinPremium · Oferta ao cliente</span><span>11</span></div>
+</section>
+
+<!-- 10 · MATEMÁTICA DO APORTE -->
+<section class="slide">
+  <div class="num">11</div>
+  <div class="eyebrow">Matemática do aporte</div>
+  <h2>Sua fatia em três ritmos de canal</h2>
+  <p class="lead">Participação sugerida de <b>25%</b> sobre a receita líquida (aporte R$ 99.000). Pacote âncora: Completo R$ 97.</p>
+
+  <table>
+    <thead>
+      <tr><th>Ritmo do canal</th><th class="r">Completo / mês</th><th class="r">GMV pacotes</th><th class="r">Líquido est.</th><th class="r">Sua fatia 25%</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="k">Conservador</td>
+        <td class="r">80</td>
+        <td class="r">R$ 7.760</td>
+        <td class="r">R$ 5.800</td>
+        <td class="r">≈ R$ 1.450</td>
+      </tr>
+      <tr>
+        <td class="k" style="color:var(--gold-bright)">Base</td>
+        <td class="r">200</td>
+        <td class="r">R$ 19.400</td>
+        <td class="r">R$ 14.500</td>
+        <td class="r" style="color:var(--gold-bright);font-weight:700">≈ R$ 3.625</td>
+      </tr>
+      <tr>
+        <td class="k">Forte</td>
+        <td class="r">400</td>
+        <td class="r">R$ 38.800</td>
+        <td class="r">R$ 29.000</td>
+        <td class="r">≈ R$ 7.250</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="g3 mt">
+    <div class="metric"><div class="n sm">R$ 99 mil</div><div class="l">Aporte Crescimento</div></div>
+    <div class="metric"><div class="n sm">~27 mês</div><div class="l">Payback no ritmo base (só fatia; canal próprio é extra)</div></div>
+    <div class="metric"><div class="n sm">&lt; 14 mês</div><div class="l">Payback no ritmo forte</div></div>
+  </div>
+
+  <p class="mt-s" style="font-size:8pt;color:var(--muted)">Ilustrativo. Líquido desconta ~10% Stripe + custo médio de crédito inclusas/bureau + infra.
+    Crédito avulso e upsell Plus melhoram o número.</p>
+  <div class="foot"><span>FinPremium · Matemática do aporte</span><span>12</span></div>
+</section>
+
+<!-- 11 · LGPD -->
+<section class="slide">
+  <div class="num">12</div>
+  <div class="eyebrow">LGPD e segurança</div>
+  <h2>O que o produto já garante</h2>
+
+  <div class="g3 mt">
+    <div class="card"><span class="ico">🔒</span><h3>Só o titular</h3>
+      <p>CPF set-once na conta. A consulta usa sempre esse documento — sem buscar terceiros.</p></div>
+    <div class="card"><span class="ico">◈</span><h3>Criptografia</h3>
+      <p>CPF da conta fica cifrado. No pedido avulso, o documento do pedido é apagado após o relatório / TTL.</p></div>
+    <div class="card"><span class="ico">⏱</span><h3>Retenção</h3>
+      <p>Relatórios expiram (padrão 90 dias). Pedidos abandonados têm documento purgado por job.</p></div>
+    <div class="card"><span class="ico">✍</span><h3>Consentimento</h3>
+      <p>Aceite LGPD gravado com versão do texto a cada consulta.</p></div>
+    <div class="card"><span class="ico">👁</span><h3>Logs mascarados</h3>
+      <p>CPF e retorno do bureau não aparecem completos em log.</p></div>
+    <div class="card"><span class="ico">✓</span><h3>Testes</h3>
+      <p>Suíte cobrindo crédito, SCR, WhatsApp, auth e e-mail a cada mudança.</p></div>
+  </div>
+
+  <div class="quote">
+    <div class="t">Compliance é feature de venda.</div>
+    <p>“Só consultamos o seu CPF, com aceite registrado” diferencia num setor marcado por desconfiança.</p>
+  </div>
+  <div class="foot"><span>FinPremium · LGPD</span><span>13</span></div>
+</section>
+
+<!-- 12 · AGORA × DEPOIS -->
+<section class="slide">
+  <div class="num">13</div>
+  <div class="eyebrow">Transparência de roadmap</div>
+  <h2>O que é agora · o que é depois</h2>
+  <p class="lead">Para alinhar expectativa: este deck não vende o que ainda não existe.</p>
+
+  <table>
+    <thead><tr><th>Item</th><th class="c">Agora</th><th class="c">Roadmap</th></tr></thead>
+    <tbody>
+      <tr><td class="k">App PF completo + WhatsApp texto/foto/áudio</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+      <tr><td class="k">Análise de Crédito PF (CPF set-once)</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+      <tr><td class="k">Import SCR → dívidas / orçamento / projeção</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+      <tr><td class="k">Checkout Stripe cartão · pacotes vitalícios</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+      <tr><td class="k">Funil + drip + painel admin</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+      <tr><td class="k">Pix no Stripe / assinatura mensal</td><td class="c no">—</td><td class="c yes">✓</td></tr>
+      <tr><td class="k">White-label (marca/domínio do parceiro)</td><td class="c no">—</td><td class="c yes">✓</td></tr>
+      <tr><td class="k">Consulta PJ productizada + visão empresa</td><td class="c no">—</td><td class="c yes">✓</td></tr>
+      <tr><td class="k">Alerta de orçamento via WhatsApp</td><td class="c no">—</td><td class="c yes">✓</td></tr>
+    </tbody>
+  </table>
+
+  <div class="quote">
+    <div class="t">Parceria começa com o que já está no ar.</div>
+    <p>Roadmap entra como fase 2, precificada à parte se o parceiro quiser white-label ou PJ.</p>
+  </div>
+  <div class="foot"><span>FinPremium · Agora × depois</span><span>14</span></div>
+</section>
+
+<!-- 13 · ROLLOUT -->
+<section class="slide">
+  <div class="num">14</div>
+  <div class="eyebrow">Como começar</div>
+  <h2>Do piloto ao aporte</h2>
+
+  <div class="g3 mt">
+    <div class="card"><span class="pill blue">Semana 1–2</span><h3 style="margin-top:8px">Teste de canal</h3>
+      <p>Alternativa 1 ou 2 (sem aporte). Cupom, treino, oferta App+Crédito no pós-serviço.</p></div>
+    <div class="card"><span class="pill blue">Semana 3–4</span><h3 style="margin-top:8px">Medir</h3>
+      <p>Adesão, WhatsApp vinculado e consultas geradas. Se ≥ 25% adesão, abre conversa de aporte.</p></div>
+    <div class="card"><span class="pill">Mês 2</span><h3 style="margin-top:8px">Aporte + contrato</h3>
+      <p>Fecha faixa Seed / Crescimento / Escala. Rateio mensal começa no mês seguinte ao aporte.</p></div>
+  </div>
+
+  <table>
+    <thead><tr><th>Métrica do piloto</th><th>Meta inicial</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Adesão à oferta App+Crédito</td><td>≥ 25% dos atendidos no período</td></tr>
+      <tr><td class="k">Ativação WhatsApp (número vinculado)</td><td>≥ 40% dos compradores em 7 dias</td></tr>
+      <tr><td class="k">Consulta de crédito gerada</td><td>≥ 60% dos compradores usam 1 inclusa</td></tr>
+      <tr><td class="k">Decisão de aporte</td><td>Até 45 dias após início do piloto</td></tr>
+    </tbody>
+  </table>
+
+  <div class="foot"><span>FinPremium · Piloto → aporte</span><span>15</span></div>
+</section>
+
+<!-- 14 · CTA -->
+<section class="slide">
+  <div class="num">15</div>
+  <div class="eyebrow">Próximo passo</div>
+  <h2>Calibrar o aporte</h2>
+
+  <div class="g3 mt">
+    <div class="card"><h3>① Demo ao vivo</h3>
+      <p>Funil, app, WhatsApp e consulta de crédito — 30 minutos no produto real.</p></div>
+    <div class="card gold"><h3>② Escolher faixa</h3>
+      <p>Seed R$ 49 mil (15%) · Crescimento R$ 99 mil (25%) · Escala R$ 198 mil (40%).</p></div>
+    <div class="card"><h3>③ Contrato + piloto</h3>
+      <p>Termo de participação, extrato mensal e metas de canal em 30–45 dias.</p></div>
+  </div>
+
+  <div class="quote" style="margin-top:18px">
+    <div class="eyebrow" style="margin-bottom:6px">Resumo — aporte + participação</div>
+    <div class="t">R$ 49 mil → 15% · R$ 99 mil → 25% · R$ 198 mil → 40%</div>
+    <p style="margin-top:8px">Base: receita líquida do FinPremium · prazo 36 meses · pacotes ao cliente
+      <b style="color:var(--text)">R$ 47 / 97 / 297</b> · crédito <b style="color:var(--text)">R$ 39,90</b> ·
+      bundle sugerido <b style="color:var(--text)">R$ 127</b>.</p>
+  </div>
+
+  <div class="foot"><span>FinPremium · Proposta comercial confidencial</span><span>2026 · 16</span></div>
+</section>
+
+</body>
+</html>

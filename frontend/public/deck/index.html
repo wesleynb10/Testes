@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>FinPremium · Joint Venture 50/50</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --line:rgba(255,255,255,.10);
+    --gold:#c9a961; --gold-bright:#e8ce87; --gold-deep:#8b7a3e;
+    --text:#f4f1ea; --text-2:#b6b1a6; --muted:#7d786e; --ok:#7fb069;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  @page{ size:330mm 186mm; margin:0 }
+  html,body{
+    background:#05040a;color:var(--text);font-family:Manrope,system-ui,sans-serif;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    width:330mm;margin:0;padding:0;
+  }
+  .slide{
+    position:relative;width:330mm;height:186mm;min-height:186mm;max-height:186mm;
+    padding:11mm 13mm 8mm;
+    display:flex;flex-direction:column;overflow:hidden;
+    background:
+      radial-gradient(900px 480px at 8% -12%, rgba(201,169,97,.15), transparent 58%),
+      radial-gradient(700px 400px at 100% 0%, rgba(122,154,184,.08), transparent 50%),
+      linear-gradient(158deg,#0b0a0f 0%,#141219 56%,#0a0910 100%);
+    page-break-after:always;break-after:page;page-break-inside:avoid;break-inside:avoid;
+  }
+  .slide:last-child{page-break-after:auto;break-after:auto}
+  .eyebrow{font-size:7.5pt;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:3px}
+  h1{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:22pt;line-height:1.05;letter-spacing:-.02em}
+  h2{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:18pt;line-height:1.08;letter-spacing:-.02em;margin-bottom:3px}
+  h3{font-size:9pt;font-weight:700;color:var(--text);margin-bottom:2px}
+  p,li{color:var(--text-2);font-size:7.9pt;line-height:1.32}
+  .lead{color:#ded9cf;font-size:9pt;line-height:1.32;max-width:105ch;margin-top:3px}
+  .foot{margin-top:auto;padding-top:5px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;color:var(--muted);font-size:6.6pt;letter-spacing:.04em}
+  .brand{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+  .brand .mark{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;
+    background:linear-gradient(140deg,var(--gold-bright),var(--gold-deep));color:#0b0a0f;
+    font-family:Fraunces,serif;font-size:11pt;font-weight:700}
+  .brand .nm{font-family:Fraunces,serif;font-size:11pt}
+  .brand .sub{font-size:5.8pt;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .mt{margin-top:7px}
+
+  .card{background:rgba(255,255,255,.032);border:1px solid var(--line);border-radius:9px;padding:8px 9px}
+  .card.gold{background:linear-gradient(150deg,rgba(201,169,97,.12),rgba(201,169,97,.03));border-color:rgba(201,169,97,.34)}
+  .card p{font-size:7.6pt;line-height:1.28}
+  .pill{display:inline-block;font-size:6.2pt;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    padding:2px 6px;border-radius:999px;background:rgba(201,169,97,.14);color:var(--gold-bright);
+    border:1px solid rgba(201,169,97,.3)}
+  .pill.ok{background:rgba(127,176,105,.14);color:var(--ok);border-color:rgba(127,176,105,.34)}
+
+  table{width:100%;border-collapse:collapse;margin-top:5px;font-size:7.4pt}
+  th{text-align:left;font-size:6.2pt;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);
+     font-weight:700;padding:3px 5px;border-bottom:1px solid rgba(201,169,97,.3)}
+  td{padding:3px 5px;border-bottom:1px solid var(--line);color:var(--text-2)}
+  td.k{color:var(--text);font-weight:600}
+  td.r{text-align:right;font-variant-numeric:tabular-nums}
+
+  .shot-wrap{
+    border-radius:9px;overflow:hidden;border:1px solid rgba(201,169,97,.28);
+    box-shadow:0 14px 40px rgba(0,0,0,.45);background:#0b0a0f;height:100%;
+  }
+  .shot-wrap img{width:100%;height:100%;object-fit:cover;object-position:top left;display:block}
+  .shot-wrap .gif-live{display:block}
+  .shot-wrap .mosaic-print{display:none}
+  @media print{
+    .shot-wrap .gif-live{display:none}
+    .shot-wrap .mosaic-print{display:block}
+  }
+  ul.clean{list-style:none;display:grid;gap:2px;margin-top:2px}
+  ul.clean li{padding-left:11px;position:relative;font-size:7.4pt;line-height:1.26}
+  ul.clean li::before{content:"›";position:absolute;left:0;color:var(--gold);font-weight:700}
+  .hl{color:var(--gold-bright);font-weight:700}
+  .note{font-size:6.4pt;color:var(--muted);margin-top:4px;line-height:1.3}
+</style>
+</head>
+<body>
+
+<!-- 1 · JV + VALUATION + EQUITY -->
+<section class="slide">
+  <div class="brand">
+    <div class="mark">F</div>
+    <div><div class="nm">FinPremium</div><div class="sub">Joint Venture · Term Sheet</div></div>
+  </div>
+  <div class="eyebrow">Seção 1 · Estrutura do acordo</div>
+  <h1>Infraestrutura proprietária pronta · escala sem gargalo técnico</h1>
+  <p class="lead">Vocês entram com <b>tráfego, lançamento e perpétuo</b>. Nós entregamos o <b>back-end proprietário</b>
+    (app + WhatsApp + crédito + checkout) — sem depender de plataformas de terceiros que corroem a margem com %.
+    Valuation do ativo: <span class="hl">R$ 200.000</span> · 50% das cotas por <span class="hl">R$ 100.000</span>.</p>
+
+  <div class="g3 mt">
+    <div class="card gold">
+      <span class="pill">Ativo aportado</span>
+      <h3 style="margin-top:5px">Frente Tech · 50%</h3>
+      <ul class="clean">
+        <li>Infra própria: app + funil + checkout</li>
+        <li>WhatsApp com IA (texto/foto/áudio)</li>
+        <li>Bureau real (Score, SCR, PEFIN, PGFN)</li>
+        <li>LTV no produto — não só na VSL</li>
+        <li>Zero CAPEX de build; go-live imediato</li>
+      </ul>
+    </div>
+    <div class="card gold">
+      <span class="pill">Mídia + conversão</span>
+      <h3 style="margin-top:5px">Frente Growth · 50%</h3>
+      <ul class="clean">
+        <li>100% da verba de tráfego pago</li>
+        <li>Criativos, VSLs e perpétuo</li>
+        <li>Copy, funis e taxa de conversão</li>
+        <li>Operação comercial como dono</li>
+        <li>Escala sem esperar fila de dev</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="pill ok">Aquisição 50%</span>
+      <h3 style="margin-top:5px">R$ 100.000 · pagamento</h3>
+      <ul class="clean">
+        <li><b>Entrada:</b> R$ 20.000 na assinatura</li>
+        <li><b>Parcelas:</b> R$ 30.000 (ex.: 6× R$ 5.000)</li>
+        <li><b>Earn-out:</b> R$ 50.000 por performance</li>
+        <li>Ex.: R$ 25k em R$ 20k/mês de receita</li>
+        <li>Saldo em R$ 50k/mês de receita</li>
+      </ul>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>Componente</th><th class="r">Valor</th><th>Natureza jurídica</th><th>Destino</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="k">Valuation do ativo tecnológico (IP)</td>
+        <td class="r hl">R$ 200.000</td>
+        <td>Pre-money da infraestrutura pronta</td>
+        <td>Âncora da JV</td>
+      </tr>
+      <tr>
+        <td class="k">Venda de 50% das cotas</td>
+        <td class="r hl">R$ 100.000</td>
+        <td>Equity purchase + aquisição do IP</td>
+        <td>Sócios Growth</td>
+      </tr>
+      <tr>
+        <td class="k">Entrada na assinatura</td>
+        <td class="r">R$ 20.000</td>
+        <td>Cash-out imediato</td>
+        <td>Fundadores Tech</td>
+      </tr>
+      <tr>
+        <td class="k">Parcelas fixas (pós-assinatura)</td>
+        <td class="r">R$ 30.000</td>
+        <td><b>Dívida incondicional</b> pela aquisição do IP — independente de pausa/continuidade do tráfego</td>
+        <td>Fundadores Tech</td>
+      </tr>
+      <tr>
+        <td class="k">Earn-out por performance do app</td>
+        <td class="r">R$ 50.000</td>
+        <td>Atrelado a marcos de receita (extrato auditável)</td>
+        <td>Fundadores Tech</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="note">As parcelas de R$ 30.000 constituem obrigação certa e exigível pela compra do ativo tecnológico.
+    Pausar campanhas, testar oferta ou redesenhar funil <b>não suspende</b> esse pagamento.</p>
+  <div class="foot"><span>FinPremium · JV Term Sheet · Confidencial</span><span>1 / 4</span></div>
+</section>
+
+<!-- 2 · OPERAÇÃO + PROJEÇÕES 50/50 -->
+<section class="slide">
+  <div class="eyebrow">Seção 2 · Modelo operacional e margem líquida</div>
+  <h2>Vocês escalam a oferta. Nós protegemos a margem no back-end.</h2>
+  <p class="lead">Growth assume <b>100% do tráfego e conteúdo</b>. Tech recebe <b>Tech Fee inicial de R$ 5.000/mês</b>
+    (fase de tração). Lucro líquido mensal repartido <span class="hl">50% Tech · 50% Growth</span> —
+    após fees, APIs, mídia, impostos e honorários fixos.</p>
+
+  <div class="g2 mt" style="grid-template-columns:1.05fr .95fr">
+    <div>
+      <table style="margin-top:0">
+        <thead>
+          <tr>
+            <th>Receita bruta / mês</th>
+            <th class="r">Lucro est.*</th>
+            <th class="r">Tech 50%</th>
+            <th class="r">Growth 50%</th>
+            <th class="r">Tech total**</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="k">R$ 30.000</td><td class="r">R$ 8.000</td><td class="r">R$ 4.000</td><td class="r">R$ 4.000</td><td class="r">R$ 9.000</td></tr>
+          <tr><td class="k">R$ 50.000</td><td class="r">R$ 16.000</td><td class="r">R$ 8.000</td><td class="r">R$ 8.000</td><td class="r">R$ 13.000</td></tr>
+          <tr><td class="k">R$ 100.000</td><td class="r">R$ 38.000</td><td class="r">R$ 19.000</td><td class="r">R$ 19.000</td><td class="r">R$ 24.000</td></tr>
+          <tr><td class="k">R$ 200.000</td><td class="r">R$ 85.000</td><td class="r">R$ 42.500</td><td class="r">R$ 42.500</td><td class="r">R$ 47.500†</td></tr>
+          <tr><td class="k">R$ 350.000</td><td class="r">R$ 160.000</td><td class="r">R$ 80.000</td><td class="r">R$ 80.000</td><td class="r">sob nova faixa†</td></tr>
+          <tr><td class="k hl">R$ 500.000+</td><td class="r hl">R$ 240.000+</td><td class="r hl">R$ 120.000+</td><td class="r hl">R$ 120.000+</td><td class="r hl">sob nova faixa†</td></tr>
+        </tbody>
+      </table>
+      <p class="note">*Ilustrativo após Stripe, APIs, mídia, impostos e Tech Fee.
+        **Tech total = dividendos 50% + Tech Fee. †Tech Fee de R$ 5.000 vale na tração inicial;
+        acima de <b>R$ 200k/mês</b> de receita, reajuste proporcional em comum acordo no comitê
+        (servidores, APIs, suporte e complexidade operacional).</p>
+    </div>
+    <div style="display:grid;gap:6px;align-content:start">
+      <div class="card gold">
+        <h3>Apuração da margem líquida</h3>
+        <ul class="clean">
+          <li>Receita bruta (oferta + créditos/uso no app)</li>
+          <li>(−) Taxas de checkout</li>
+          <li>(−) APIs: bureau · WhatsApp · IA</li>
+          <li>(−) Mídia e produção</li>
+          <li>(−) Impostos · (−) Tech Fee</li>
+          <li>(=) Lucro → <b>50% / 50%</b></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Por que a margem segura</h3>
+        <ul class="clean">
+          <li>Infra própria — sem % recorrente de “plataforma”</li>
+          <li>Lifetime no acesso base; consumo variável em créditos</li>
+          <li>LTV sobe no back-end (crédito, WhatsApp, retenção)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Tech Fee escalonado</h3>
+        <p><b>R$ 5.000/mês</b> na tração. Em marcos maiores (ex.: &gt; R$ 200k/mês), o comitê reajusta o fee
+          para cobrir escala real — sem surpresa, sem gargalo.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>FinPremium · JV Term Sheet · Confidencial</span><span>2 / 4</span></div>
+</section>
+
+<!-- 3 · CENÁRIOS DE RISCO E SALVAGUARDAS -->
+<section class="slide">
+  <div class="eyebrow">Seção 3 · Cenários de risco e salvaguardas</div>
+  <h2>Sucesso previsto. Adversidade também.</h2>
+  <p class="lead">Term Sheet com maturidade jurídica: inadimplência, exit, preferência de venda, deadlock e M&amp;A —
+    regras claras antes do primeiro real de mídia.</p>
+
+  <table class="mt">
+    <thead>
+      <tr><th>Risco / pergunta</th><th>Mecanismo sugerido</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="k">Growth não cumpre o aporte de mídia?</td>
+        <td>Cure period + redução/suspensão de vesting de equity; reincidência → call option da Tech ou rescisão parcial</td>
+      </tr>
+      <tr>
+        <td class="k">Sócio decide sair da operação?</td>
+        <td>Good/bad leaver: cliff de vesting, buy-back por valuation/fórmula pré-definida, non-compete proporcional</td>
+      </tr>
+      <tr>
+        <td class="k">Venda de cota a terceiros?</td>
+        <td>ROFR (direito de preferência); tag-along e drag-along no acordo de sócios</td>
+      </tr>
+      <tr>
+        <td class="k">Impasse com participação igual (50/50)?</td>
+        <td>Mediação → árbitro / voto de minerva rotativo / shotgun (buy-sell) após cure period</td>
+      </tr>
+      <tr>
+        <td class="k">Proposta de aquisição da empresa?</td>
+        <td>Notificação obrigatória; quórum qualificado; rateio conforme equity vigente + earn-outs pendentes</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="g3 mt">
+    <div class="card">
+      <span class="pill">IP</span>
+      <h3 style="margin-top:4px">Propriedade intelectual</h3>
+      <ul class="clean">
+        <li>Código e marca sob licença de uso da JV</li>
+        <li>Uso exclusivo enquanto o acordo vigorar</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="pill">Dedicação</span>
+      <h3 style="margin-top:4px">Gatilho Full-Time</h3>
+      <ul class="clean">
+        <li>Tech em 100% quando a fatia individual</li>
+        <li>atingir <b>R$ 50.000 líquidos/mês</b></li>
+        <li>por <b>3 meses consecutivos</b></li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="pill">Governança</span>
+      <h3 style="margin-top:4px">Rotina mensal</h3>
+      <ul class="clean">
+        <li>Comitê 50/50: preço, mídia e roadmap</li>
+        <li>Fee/dividendos até dia 10 · MRR auditável</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>FinPremium · JV Term Sheet · Confidencial</span><span>3 / 4</span></div>
+</section>
+
+<!-- 4 · LIDERANÇA TECH + ESCALA -->
+<section class="slide">
+  <div class="eyebrow">Seção 4 · Liderança Tech · Escala</div>
+  <h2>Sócios estratégicos — não “time de freela”</h2>
+  <p class="lead"><b>A tese:</b> vocês focam em tráfego pesado e aquisição implacável. Nós garantimos infraestrutura
+    que aguenta o volume e engenharia de produto que maximiza LTV e margem líquida no back-end.</p>
+
+  <div class="card gold mt">
+    <span class="pill">A Frente Tech</span>
+    <h3 style="margin-top:4px">Liderança e estrutura executiva</h3>
+    <p style="margin-top:3px">Cadeiras definidas para velocidade de execução e zero gargalos operacionais na escala de mídia.</p>
+    <div class="g2" style="margin-top:6px">
+      <div>
+        <h3>Wesley Batista — Head of Product &amp; Estratégia Comercial</h3>
+        <ul class="clean">
+          <li><b>Background:</b> Economista, base forte em exatas · Senior Product Manager em operações de dados de altíssima escala (Mercado Livre)</li>
+          <li><b>Mandato na JV:</b> engenharia financeira do produto — pricing, comportamento e unit economics</li>
+          <li>Enquanto Growth acelera CAC, Produto espreme lucro no back-end (upsell, retenção, créditos)</li>
+          <li>Evolução do app 100% orientada a dados e margem líquida</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wallison Rocha — Head of Engineering &amp; CTO</h3>
+        <ul class="clean">
+          <li><b>Background:</b> arquitetura moderna e infra de alta performance (React 19, FastAPI, MongoDB)</li>
+          <li><b>Mandato na JV:</b> estabilidade absoluta e escala sem fricção</li>
+          <li>Uptime impecável em picos de lançamento e perpétuo agressivo</li>
+          <li>Orquestração de APIs críticas (Direct Data, Stripe, Gemini) e segurança da informação</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2 mt">
+    <div class="card">
+      <span class="pill ok">Escala aberta</span>
+      <h3 style="margin-top:4px">Integração com cartão de crédito</h3>
+      <p>Arquitetura pronta para evoluir com emissor/parceiro de cartão — novo eixo de conversão, ticket e LTV.
+        Priorização e termos no comitê 50/50 quando a operação estiver madura.</p>
+    </div>
+    <div class="card">
+      <span class="pill">Próximo passo</span>
+      <h3 style="margin-top:4px">Do termo ao go-live</h3>
+      <p><b>1)</b> Demo (30 min) · <b>2)</b> LOI / Term Sheet · <b>3)</b> DD leve ·
+        <b>4)</b> Contrato + entrada R$ 20k · <b>5)</b> Go-live sob operação Growth.</p>
+    </div>
+  </div>
+  <div class="foot"><span>FinPremium · Joint Venture 50/50 · Confidencial · 2026</span><span>4 / 4</span></div>
+</section>
+
+</body>
+</html>

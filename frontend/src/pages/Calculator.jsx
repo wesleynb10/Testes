@@ -20,7 +20,7 @@ import {
 } from "recharts";
 import { Sparkles, ChevronRight, Gem, Mail, MessageCircle, TrendingUp } from "lucide-react";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API = `${(process.env.REACT_APP_BACKEND_URL || '').replace(/\/$/, '')}/api`;
 
 export default function Calculator() {
   const nav = useNavigate();
