@@ -8,8 +8,9 @@
 |---|---|---|
 | Valuation do ativo tecnológico | **R$ 200.000** | Pre-money do software pronto |
 | Venda de 50% das cotas | **R$ 100.000** | Equity purchase |
-| Upfront na assinatura | **R$ 40.000 – 50.000** | Cash-out aos fundadores Tech |
-| Earn-out por marcos | **R$ 50.000 – 60.000** | Performance-linked aos fundadores Tech |
+| Entrada na assinatura | **R$ 20.000** | Cash-out imediato aos fundadores Tech |
+| Parcelas fixas | **R$ 30.000** | Ex.: 6× R$ 5.000 mensais |
+| Earn-out por performance | **R$ 50.000** | Atrelado a marcos de receita do app |
 
 **Earn-out (exemplo):** R$ 25.000 ao atingir R$ 20k/mês de receita; saldo ao atingir R$ 50k/mês.
 
@@ -48,4 +49,4 @@
 - **Gatilho Full-Time:** fundadores Tech em dedicação 100% quando a fatia individual estabilizar em R$ 80–100k/mês de faturamento bruto por 3 meses consecutivos.
 - **Governança:** comitê mensal 50/50; Tech Fee e dividendos até dia 10 do mês seguinte; earn-out com extrato Stripe auditável.
 
-**Próximo passo:** Demo → LOI/Term Sheet → DD leve → Contrato societário + upfront → Go-live comercial.
+**Próximo passo:** Demo → LOI/Term Sheet → DD leve → Contrato societário + entrada R$ 20k → Go-live comercial.
